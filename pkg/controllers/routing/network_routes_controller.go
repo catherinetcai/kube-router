@@ -49,6 +49,7 @@ const (
 	//nolint:gosec // this is not a hardcoded password
 	peerPasswordAnnotation             = "kube-router.io/peer.passwords"
 	peerPortAnnotation                 = "kube-router.io/peer.ports"
+	routerIDAnnotation                 = "kube-router.io/router-id"
 	rrClientAnnotation                 = "kube-router.io/rr.client"
 	rrServerAnnotation                 = "kube-router.io/rr.server"
 	svcLocalAnnotation                 = "kube-router.io/service.local"
@@ -155,7 +156,8 @@ type NetworkRoutingController struct {
 
 // Run runs forever until we are notified on stop channel
 func (nrc *NetworkRoutingController) Run(healthChan chan<- *healthcheck.ControllerHeartbeat, stopCh <-chan struct{},
-	wg *sync.WaitGroup) {
+	wg *sync.WaitGroup,
+) {
 	var err error
 	if nrc.enableCNI {
 		nrc.updateCNIConfig()
@@ -1123,7 +1125,7 @@ func (nrc *NetworkRoutingController) startBgpServer(grpcServer bool) error {
 		// Get Global Peer Router ASN configs
 		nodeBgpPeerPortsAnnotation, ok := node.Annotations[peerPortAnnotation]
 		// Default to default BGP port if port annotation is not found
-		var peerPorts = make([]uint32, 0)
+		peerPorts := make([]uint32, 0)
 		if ok {
 			portStrings := stringToSlice(nodeBgpPeerPortsAnnotation, ",")
 			peerPorts, err = stringSliceToUInt32(portStrings)
@@ -1270,8 +1272,8 @@ func (nrc *NetworkRoutingController) setupHandlers(node *v1core.Node) error {
 func NewNetworkRoutingController(clientset kubernetes.Interface,
 	kubeRouterConfig *options.KubeRouterConfig,
 	nodeInformer cache.SharedIndexInformer, svcInformer cache.SharedIndexInformer,
-	epInformer cache.SharedIndexInformer, ipsetMutex *sync.Mutex) (*NetworkRoutingController, error) {
-
+	epInformer cache.SharedIndexInformer, ipsetMutex *sync.Mutex,
+) (*NetworkRoutingController, error) {
 	var err error
 
 	nrc := NetworkRoutingController{ipsetMutex: ipsetMutex}
@@ -1329,9 +1331,16 @@ func NewNetworkRoutingController(clientset kubernetes.Interface,
 		}
 	}
 
-	nrc.routerID, err = bgp.GenerateRouterID(nrc.krNode, kubeRouterConfig.RouterID)
-	if err != nil {
-		return nil, err
+	nodeAnnotationRouterID, ok := node.Annotations[routerIDAnnotation]
+	if !ok {
+		nrc.routerID, err = bgp.GenerateRouterID(nrc.krNode, kubeRouterConfig.RouterID)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		klog.Infof("Found annotation `kube-router.io/router-id` on node object so setting "+
+			"router-id: %s", nodeAnnotationRouterID)
+		nrc.routerID = nodeAnnotationRouterID
 	}
 
 	// let's start with assumption we have necessary IAM creds to access EC2 api
