@@ -49,6 +49,7 @@ const (
 	//nolint:gosec // this is not a hardcoded password
 	peerPasswordAnnotation             = "kube-router.io/peer.passwords"
 	peerPortAnnotation                 = "kube-router.io/peer.ports"
+	peersAnnotation                    = "kube-router.io/peers"
 	rrClientAnnotation                 = "kube-router.io/rr.client"
 	rrServerAnnotation                 = "kube-router.io/rr.server"
 	svcLocalAnnotation                 = "kube-router.io/service.local"
@@ -69,6 +70,97 @@ const (
 	routeReflectorMaxID = 32
 	ipv4MaskMinBits     = 32
 )
+
+// TODO: Rename this to be less generic
+type peerConfig struct {
+	ASNs      []uint32
+	IPs       []net.IP
+	IPStrings []string
+	LocalIPs  []string
+	Passwords []string
+	Ports     []uint32
+}
+
+// TODO: Also rename this
+func peerConfigFromLegacyAnnotations(nodeAnnotations map[string]string) (*peerConfig, error) {
+	cfg := &peerConfig{}
+	// Get Global Peer Router ASN configs
+	nodeBgpPeerAsnsAnnotation, ok := nodeAnnotations[peerASNAnnotation]
+	if !ok {
+		klog.Infof("Could not find BGP peer info for the node in the node annotations so " +
+			"skipping configuring peer.")
+		return nil, nil
+	}
+	asnStrings := stringToSlice(nodeBgpPeerAsnsAnnotation, ",")
+	peerASNs, err := stringSliceToUInt32(asnStrings)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse node's Peer ASN Numbers Annotation: %w", err)
+	}
+	cfg.ASNs = peerASNs
+
+	// Get Global Peer Router IP Address configs
+	nodeBgpPeersAnnotation, ok := nodeAnnotations[peerIPAnnotation]
+	if !ok {
+		klog.Infof("Could not find BGP peer info for the node in the node annotations " +
+			"so skipping configuring peer.")
+		return nil, nil
+	}
+	ipStrings := stringToSlice(nodeBgpPeersAnnotation, ",")
+	peerIPs, err := stringSliceToIPs(ipStrings)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse node's Peer Addresses Annotation: %w", err)
+	}
+	cfg.IPStrings = ipStrings
+	cfg.IPs = peerIPs
+
+	// Get Global Peer Router ASN configs
+	nodeBgpPeerPortsAnnotation, ok := nodeAnnotations[peerPortAnnotation]
+	// Default to default BGP port if port annotation is not found
+	if ok {
+		portStrings := stringToSlice(nodeBgpPeerPortsAnnotation, ",")
+		cfg.Ports, err = stringSliceToUInt32(portStrings)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse node's Peer Port Numbers Annotation: %w", err)
+		}
+	}
+
+	// Get Global Peer Router Password configs
+	nodeBGPPasswordsAnnotation, ok := nodeAnnotations[peerPasswordAnnotation]
+	if !ok {
+		klog.Infof("Could not find BGP peer password info in the node's annotations. Assuming no passwords.")
+	} else {
+		passStrings := stringToSlice(nodeBGPPasswordsAnnotation, ",")
+		cfg.Passwords, err = stringSliceB64Decode(passStrings)
+		// TODO: Revisit if this will leak anything sensitive
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse node's Peer Passwords Annotation: %w", err)
+		}
+	}
+
+	// Get Global Peer Router LocalIP configs
+	nodeBGPPeerLocalIPs, ok := nodeAnnotations[peerLocalIPAnnotation]
+	if !ok {
+		klog.Infof("Could not find BGP peer local ip info in the node's annotations. Assuming node IP.")
+	} else {
+		cfg.LocalIPs = stringToSlice(nodeBGPPeerLocalIPs, ",")
+		err = func() error {
+			for _, s := range cfg.LocalIPs {
+				if s != "" {
+					ip := net.ParseIP(s)
+					if ip == nil {
+						return fmt.Errorf("could not parse \"%s\" as an IP", s)
+					}
+				}
+			}
+			return nil
+		}()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse node's Peer Local Addresses Annotation: %w", err)
+		}
+	}
+
+	return cfg, nil
+}
 
 // RouteSyncer is an interface that defines the methods needed to sync routes to the kernel's routing table
 type RouteSyncer interface {
@@ -155,7 +247,8 @@ type NetworkRoutingController struct {
 
 // Run runs forever until we are notified on stop channel
 func (nrc *NetworkRoutingController) Run(healthChan chan<- *healthcheck.ControllerHeartbeat, stopCh <-chan struct{},
-	wg *sync.WaitGroup) {
+	wg *sync.WaitGroup,
+) {
 	var err error
 	if nrc.enableCNI {
 		nrc.updateCNIConfig()
@@ -1084,106 +1177,17 @@ func (nrc *NetworkRoutingController) startBgpServer(grpcServer bool) error {
 	// If the global routing peer is configured then peer with it
 	// else attempt to get peers from node specific BGP annotations.
 	if len(nrc.globalPeerRouters) == 0 {
-		// Get Global Peer Router ASN configs
-		nodeBgpPeerAsnsAnnotation, ok := node.Annotations[peerASNAnnotation]
-		if !ok {
-			klog.Infof("Could not find BGP peer info for the node in the node annotations so " +
-				"skipping configuring peer.")
-			return nil
-		}
-
-		asnStrings := stringToSlice(nodeBgpPeerAsnsAnnotation, ",")
-		peerASNs, err := stringSliceToUInt32(asnStrings)
+		peerCfg, err := peerConfigFromLegacyAnnotations(node.Annotations)
 		if err != nil {
 			err2 := nrc.bgpServer.StopBgp(context.Background(), &gobgpapi.StopBgpRequest{})
 			if err2 != nil {
 				klog.Errorf("Failed to stop bgpServer: %s", err2)
 			}
-			return fmt.Errorf("failed to parse node's Peer ASN Numbers Annotation: %s", err)
-		}
-
-		// Get Global Peer Router IP Address configs
-		nodeBgpPeersAnnotation, ok := node.Annotations[peerIPAnnotation]
-		if !ok {
-			klog.Infof("Could not find BGP peer info for the node in the node annotations " +
-				"so skipping configuring peer.")
-			return nil
-		}
-		ipStrings := stringToSlice(nodeBgpPeersAnnotation, ",")
-		peerIPs, err := stringSliceToIPs(ipStrings)
-		if err != nil {
-			err2 := nrc.bgpServer.StopBgp(context.Background(), &gobgpapi.StopBgpRequest{})
-			if err2 != nil {
-				klog.Errorf("Failed to stop bgpServer: %s", err2)
-			}
-
-			return fmt.Errorf("failed to parse node's Peer Addresses Annotation: %s", err)
-		}
-
-		// Get Global Peer Router ASN configs
-		nodeBgpPeerPortsAnnotation, ok := node.Annotations[peerPortAnnotation]
-		// Default to default BGP port if port annotation is not found
-		var peerPorts = make([]uint32, 0)
-		if ok {
-			portStrings := stringToSlice(nodeBgpPeerPortsAnnotation, ",")
-			peerPorts, err = stringSliceToUInt32(portStrings)
-			if err != nil {
-				err2 := nrc.bgpServer.StopBgp(context.Background(), &gobgpapi.StopBgpRequest{})
-				if err2 != nil {
-					klog.Errorf("Failed to stop bgpServer: %s", err2)
-				}
-				return fmt.Errorf("failed to parse node's Peer Port Numbers Annotation: %s", err)
-			}
-		}
-
-		// Get Global Peer Router Password configs
-		var peerPasswords []string
-		nodeBGPPasswordsAnnotation, ok := node.Annotations[peerPasswordAnnotation]
-		if !ok {
-			klog.Infof("Could not find BGP peer password info in the node's annotations. Assuming no passwords.")
-		} else {
-			passStrings := stringToSlice(nodeBGPPasswordsAnnotation, ",")
-			peerPasswords, err = stringSliceB64Decode(passStrings)
-			if err != nil {
-				err2 := nrc.bgpServer.StopBgp(context.Background(), &gobgpapi.StopBgpRequest{})
-				if err2 != nil {
-					klog.Errorf("Failed to stop bgpServer: %s", err2)
-				}
-				return fmt.Errorf("failed to parse node's Peer Passwords Annotation")
-			}
-		}
-
-		// Get Global Peer Router LocalIP configs
-		var peerLocalIPs []string
-		nodeBGPPeerLocalIPs, ok := node.Annotations[peerLocalIPAnnotation]
-		if !ok {
-			klog.Infof("Could not find BGP peer local ip info in the node's annotations. Assuming node IP.")
-		} else {
-			peerLocalIPs = stringToSlice(nodeBGPPeerLocalIPs, ",")
-			err = func() error {
-				for _, s := range peerLocalIPs {
-					if s != "" {
-						ip := net.ParseIP(s)
-						if ip == nil {
-							return fmt.Errorf("could not parse \"%s\" as an IP", s)
-						}
-					}
-				}
-
-				return nil
-			}()
-			if err != nil {
-				err2 := nrc.bgpServer.StopBgp(context.Background(), &gobgpapi.StopBgpRequest{})
-				if err2 != nil {
-					klog.Errorf("Failed to stop bgpServer: %s", err2)
-				}
-
-				return fmt.Errorf("failed to parse node's Peer Local Addresses Annotation: %s", err)
-			}
+			return err
 		}
 
 		// Create and set Global Peer Router complete configs
-		nrc.globalPeerRouters, err = newGlobalPeers(peerIPs, peerPorts, peerASNs, peerPasswords, peerLocalIPs,
+		nrc.globalPeerRouters, err = newGlobalPeers(peerCfg.IPs, peerCfg.Ports, peerCfg.ASNs, peerCfg.Passwords, peerCfg.LocalIPs,
 			nrc.bgpHoldtime, nrc.krNode.GetPrimaryNodeIP().String())
 		if err != nil {
 			err2 := nrc.bgpServer.StopBgp(context.Background(), &gobgpapi.StopBgpRequest{})
@@ -1194,7 +1198,7 @@ func (nrc *NetworkRoutingController) startBgpServer(grpcServer bool) error {
 			return fmt.Errorf("failed to process Global Peer Router configs: %s", err)
 		}
 
-		nrc.nodePeerRouters = ipStrings
+		nrc.nodePeerRouters = peerCfg.IPStrings
 	}
 
 	if len(nrc.globalPeerRouters) != 0 {
@@ -1270,8 +1274,8 @@ func (nrc *NetworkRoutingController) setupHandlers(node *v1core.Node) error {
 func NewNetworkRoutingController(clientset kubernetes.Interface,
 	kubeRouterConfig *options.KubeRouterConfig,
 	nodeInformer cache.SharedIndexInformer, svcInformer cache.SharedIndexInformer,
-	epInformer cache.SharedIndexInformer, ipsetMutex *sync.Mutex) (*NetworkRoutingController, error) {
-
+	epInformer cache.SharedIndexInformer, ipsetMutex *sync.Mutex,
+) (*NetworkRoutingController, error) {
 	var err error
 
 	nrc := NetworkRoutingController{ipsetMutex: ipsetMutex}
