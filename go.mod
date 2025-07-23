@@ -8,7 +8,15 @@ require (
 	github.com/aws/smithy-go v1.22.5
 	github.com/ccoveille/go-safecast v1.6.1
 	github.com/coreos/go-iptables v0.8.0
+<<<<<<< HEAD
 	github.com/docker/docker v28.3.3+incompatible
+||||||| parent of 4c9c6570 (Consolidate route construction and add tests)
+	github.com/docker/docker v28.3.2+incompatible
+=======
+	github.com/docker/docker v28.3.2+incompatible
+	github.com/goccy/go-yaml v1.18.0
+	github.com/google/go-cmp v0.7.0
+>>>>>>> 4c9c6570 (Consolidate route construction and add tests)
 	github.com/hashicorp/go-version v1.7.0
 	github.com/moby/ipvs v1.1.0
 	github.com/onsi/ginkgo v1.16.5
@@ -66,7 +74,6 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/gnostic-models v0.6.9-0.20230804172637-c7be7c783f49 // indirect
-	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
