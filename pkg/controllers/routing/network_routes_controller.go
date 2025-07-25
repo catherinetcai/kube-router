@@ -73,6 +73,31 @@ const (
 	ipv4MaskMinBits     = 32
 )
 
+// Wrapper type to automatically handles decoding b64 encoded strings upon unmarshalling
+type Base64String string
+
+func (b *Base64String) UnmarshalYAML(raw []byte) error {
+	var tmp string
+	if err := yaml.Unmarshal(raw, &tmp); err != nil {
+		return fmt.Errorf("failed to unmarshal string into base64string type: %w", err)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(tmp)
+	if err != nil {
+		return fmt.Errorf("failed to base64 decode field: %w", err)
+	}
+	*b = Base64String(string(decoded))
+	return nil
+}
+
+type bgpPeerConfig struct {
+	LocalIP        string       `yaml:"localip"`
+	Password       Base64String `yaml:"password"`
+	Port           uint32       `yaml:"port"`
+	RemoteASN      uint32       `yaml:"remoteasn"`
+	RemoteIP       net.IP       `yaml:"remoteip"`
+	remoteIPString string
+}
+
 type bgpPeerConfigs []bgpPeerConfig
 
 func (b bgpPeerConfigs) LocalIPs() []string {
@@ -123,48 +148,21 @@ func (b bgpPeerConfigs) RemoteIPStrings() []string {
 	return remoteIPs
 }
 
-// Wrapper type to automatically handles decoding b64 encoded strings upon unmarshalling
-type Base64String string
-
-func (b *Base64String) UnmarshalYAML(raw []byte) error {
-	var tmp string
-	if err := yaml.Unmarshal(raw, &tmp); err != nil {
-		return fmt.Errorf("failed to unmarshal string into base64string type: %w", err)
-	}
-	decoded, err := base64.StdEncoding.DecodeString(tmp)
-	if err != nil {
-		return fmt.Errorf("failed to base64 decode field: %w", err)
-	}
-	*b = Base64String(string(decoded))
-	return nil
-}
-
-type bgpPeerConfig struct {
-	LocalIP        string       `yaml:"localip"`
-	Password       Base64String `yaml:"password"`
-	Port           uint32       `yaml:"port"`
-	RemoteASN      uint32       `yaml:"remoteasn"`
-	RemoteIP       net.IP       `yaml:"remoteip"`
-	remoteIPString string
-}
-
 func bgpPeerConfigsFromAnnotations(nodeAnnotations map[string]string) (bgpPeerConfigs, error) {
 	nodeBgpPeersAnnotation, ok := nodeAnnotations[peersAnnotation]
 	if !ok {
-		klog.Infof("%s annotation not set, using legacy node annotations to configure BGP peer info", peersAnnotation)
-		// Use legacy peer configs
-		return bgpPeerConfigsFromLegacyAnnotations(nodeAnnotations)
+		klog.Infof("%s annotation not set, using individual node annotations to configure BGP peer info", peersAnnotation)
+		return bgpPeerConfigsFromIndividualAnnotations(nodeAnnotations)
 	}
 
 	var peerConfigs []bgpPeerConfig
-	// TODO: Requires custom unmarshal because we need to handle the b64 decode
 	if err := yaml.Unmarshal([]byte(nodeBgpPeersAnnotation), &peerConfigs); err != nil {
 		return nil, fmt.Errorf("failed to parse %s annotation: %w", peersAnnotation, err)
 	}
 	return peerConfigs, nil
 }
 
-func bgpPeerConfigsFromLegacyAnnotations(nodeAnnotations map[string]string) (bgpPeerConfigs, error) {
+func bgpPeerConfigsFromIndividualAnnotations(nodeAnnotations map[string]string) (bgpPeerConfigs, error) {
 	// Get Global Peer Router ASN configs
 	nodeBgpPeerAsnsAnnotation, ok := nodeAnnotations[peerASNAnnotation]
 	if !ok {

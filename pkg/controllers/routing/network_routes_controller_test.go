@@ -2668,8 +2668,7 @@ func Test_bgpPeerConfigsFromAnnotations(t *testing.T) {
 			false,
 		},
 		{
-			// TODO: better test names
-			"bgp peers config annotation",
+			"combined bgp peers config annotation",
 			map[string]string{
 				peersAnnotation: `- remoteip: 10.0.0.1
   remoteasn: 64640
@@ -2694,6 +2693,50 @@ func Test_bgpPeerConfigsFromAnnotations(t *testing.T) {
 					LocalIP:   "192.168.0.2",
 				},
 			},
+			false,
+		},
+		{
+			"individual bgp peers config annotations",
+			map[string]string{
+				peerIPAnnotation:       "10.0.0.1,10.0.0.2",
+				peerASNAnnotation:      "64640,64641",
+				peerPasswordAnnotation: "cGFzc3dvcmQ=,cGFzc3dvcmQ=",
+				peerLocalIPAnnotation:  "192.168.0.1,192.168.0.2",
+			},
+			bgpPeerConfigs{
+				bgpPeerConfig{
+					RemoteIP:  net.ParseIP("10.0.0.1"),
+					RemoteASN: uint32(64640),
+					Password:  "password",
+					LocalIP:   "192.168.0.1",
+				},
+				bgpPeerConfig{
+					RemoteIP:  net.ParseIP("10.0.0.2"),
+					RemoteASN: uint32(64641),
+					Password:  "password",
+					LocalIP:   "192.168.0.2",
+				},
+			},
+			false,
+		},
+		{
+			"individual bgp peers config annotations without peer ASN annotation",
+			map[string]string{
+				peerASNAnnotation:      "64640,64641",
+				peerPasswordAnnotation: "cGFzc3dvcmQ=,cGFzc3dvcmQ=",
+				peerLocalIPAnnotation:  "192.168.0.1,192.168.0.2",
+			},
+			nil,
+			false,
+		},
+		{
+			"individual bgp peers config annotations without peer IP annotation",
+			map[string]string{
+				peerIPAnnotation:       "10.0.0.1,10.0.0.2",
+				peerPasswordAnnotation: "cGFzc3dvcmQ=,cGFzc3dvcmQ=",
+				peerLocalIPAnnotation:  "192.168.0.1,192.168.0.2",
+			},
+			nil,
 			false,
 		},
 	}
