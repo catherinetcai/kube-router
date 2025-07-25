@@ -2,6 +2,7 @@ package routing
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
@@ -85,7 +86,7 @@ func (b bgpPeerConfigs) LocalIPs() []string {
 func (b bgpPeerConfigs) Passwords() []string {
 	passwords := make([]string, len(b))
 	for i, cfg := range b {
-		passwords[i] = cfg.Password
+		passwords[i] = string(cfg.Password)
 	}
 	return passwords
 }
@@ -122,12 +123,28 @@ func (b bgpPeerConfigs) RemoteIPStrings() []string {
 	return remoteIPs
 }
 
+// Wrapper type to automatically handles decoding b64 encoded strings upon unmarshalling
+type Base64String string
+
+func (b *Base64String) UnmarshalYAML(raw []byte) error {
+	var tmp string
+	if err := yaml.Unmarshal(raw, &tmp); err != nil {
+		return fmt.Errorf("failed to unmarshal string into base64string type: %w", err)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(tmp)
+	if err != nil {
+		return fmt.Errorf("failed to base64 decode field: %w", err)
+	}
+	*b = Base64String(string(decoded))
+	return nil
+}
+
 type bgpPeerConfig struct {
-	LocalIP        string `yaml:"localip,omitempty"`
-	Password       string `yaml:"password,omitempty"`
-	Port           uint32 `yaml:"port,omitempty"`
-	RemoteASN      uint32 `yaml:"remoteasn,omitempty"`
-	RemoteIP       net.IP `yaml:"remoteip,omitempty"`
+	LocalIP        string       `yaml:"localip"`
+	Password       Base64String `yaml:"password"`
+	Port           uint32       `yaml:"port"`
+	RemoteASN      uint32       `yaml:"remoteasn"`
+	RemoteIP       net.IP       `yaml:"remoteip"`
 	remoteIPString string
 }
 
@@ -210,7 +227,7 @@ func bgpPeerConfigsFromLegacyAnnotations(nodeAnnotations map[string]string) (bgp
 			return nil, fmt.Errorf("failed to parse node's Peer Passwords Annotation: %w", err)
 		}
 		for i, password := range passwords {
-			peerConfigs[i].Password = password
+			peerConfigs[i].Password = Base64String(password)
 		}
 	}
 
