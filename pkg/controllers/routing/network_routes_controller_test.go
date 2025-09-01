@@ -2654,6 +2654,24 @@ func Test_routeReflectorConfiguration(t *testing.T) {
 	}
 }
 
+// Helper functions for creating pointer types in tests
+func stringPtr(s string) *string {
+	return &s
+}
+
+func uint32Ptr(u uint32) *uint32 {
+	return &u
+}
+
+func base64StringPtr(s string) *Base64String {
+	b := Base64String(s)
+	return &b
+}
+
+func ipPtr(ip net.IP) *net.IP {
+	return &ip
+}
+
 func Test_bgpPeerConfigsFromAnnotations(t *testing.T) {
 	testCases := []struct {
 		name                   string
@@ -2681,16 +2699,40 @@ func Test_bgpPeerConfigsFromAnnotations(t *testing.T) {
 			},
 			bgpPeerConfigs{
 				bgpPeerConfig{
-					RemoteIP:  net.ParseIP("10.0.0.1"),
-					RemoteASN: uint32(64640),
-					Password:  "password",
-					LocalIP:   "192.168.0.1",
+					RemoteIP:  ipPtr(net.ParseIP("10.0.0.1")),
+					RemoteASN: uint32Ptr(64640),
+					Password:  base64StringPtr("password"),
+					LocalIP:   stringPtr("192.168.0.1"),
 				},
 				bgpPeerConfig{
-					RemoteIP:  net.ParseIP("10.0.0.2"),
-					RemoteASN: uint32(64641),
-					Password:  "password",
-					LocalIP:   "192.168.0.2",
+					RemoteIP:  ipPtr(net.ParseIP("10.0.0.2")),
+					RemoteASN: uint32Ptr(64641),
+					Password:  base64StringPtr("password"),
+					LocalIP:   stringPtr("192.168.0.2"),
+				},
+			},
+			false,
+		},
+		{
+			"combined bgp peers config annotation without all fields set",
+			map[string]string{
+				peersAnnotation: `- remoteip: 10.0.0.1
+  remoteasn: 64640
+- remoteip: 10.0.0.2
+  remoteasn: 64641
+  password: cGFzc3dvcmQ=
+  localip: 192.168.0.2`,
+			},
+			bgpPeerConfigs{
+				bgpPeerConfig{
+					RemoteIP:  ipPtr(net.ParseIP("10.0.0.1")),
+					RemoteASN: uint32Ptr(64640),
+				},
+				bgpPeerConfig{
+					RemoteIP:  ipPtr(net.ParseIP("10.0.0.2")),
+					RemoteASN: uint32Ptr(64641),
+					Password:  base64StringPtr("password"),
+					LocalIP:   stringPtr("192.168.0.2"),
 				},
 			},
 			false,
@@ -2705,16 +2747,16 @@ func Test_bgpPeerConfigsFromAnnotations(t *testing.T) {
 			},
 			bgpPeerConfigs{
 				bgpPeerConfig{
-					RemoteIP:  net.ParseIP("10.0.0.1"),
-					RemoteASN: uint32(64640),
-					Password:  "password",
-					LocalIP:   "192.168.0.1",
+					RemoteIP:  ipPtr(net.ParseIP("10.0.0.1")),
+					RemoteASN: uint32Ptr(64640),
+					Password:  base64StringPtr("password"),
+					LocalIP:   stringPtr("192.168.0.1"),
 				},
 				bgpPeerConfig{
-					RemoteIP:  net.ParseIP("10.0.0.2"),
-					RemoteASN: uint32(64641),
-					Password:  "password",
-					LocalIP:   "192.168.0.2",
+					RemoteIP:  ipPtr(net.ParseIP("10.0.0.2")),
+					RemoteASN: uint32Ptr(64641),
+					Password:  base64StringPtr("password"),
+					LocalIP:   stringPtr("192.168.0.2"),
 				},
 			},
 			false,

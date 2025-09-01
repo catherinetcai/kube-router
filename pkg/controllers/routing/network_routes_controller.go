@@ -90,11 +90,11 @@ func (b *Base64String) UnmarshalYAML(raw []byte) error {
 }
 
 type bgpPeerConfig struct {
-	LocalIP        string       `yaml:"localip"`
-	Password       Base64String `yaml:"password"`
-	Port           uint32       `yaml:"port"`
-	RemoteASN      uint32       `yaml:"remoteasn"`
-	RemoteIP       net.IP       `yaml:"remoteip"`
+	LocalIP        *string       `yaml:"localip"`
+	Password       *Base64String `yaml:"password"`
+	Port           *uint32       `yaml:"port"`
+	RemoteASN      *uint32       `yaml:"remoteasn"`
+	RemoteIP       *net.IP       `yaml:"remoteip"`
 	remoteIPString string
 }
 
@@ -103,7 +103,9 @@ type bgpPeerConfigs []bgpPeerConfig
 func (b bgpPeerConfigs) LocalIPs() []string {
 	localIPs := make([]string, len(b))
 	for i, cfg := range b {
-		localIPs[i] = cfg.LocalIP
+		if cfg.LocalIP != nil {
+			localIPs[i] = *cfg.LocalIP
+		}
 	}
 	return localIPs
 }
@@ -111,7 +113,9 @@ func (b bgpPeerConfigs) LocalIPs() []string {
 func (b bgpPeerConfigs) Passwords() []string {
 	passwords := make([]string, len(b))
 	for i, cfg := range b {
-		passwords[i] = string(cfg.Password)
+		if cfg.Password != nil {
+			passwords[i] = string(*cfg.Password)
+		}
 	}
 	return passwords
 }
@@ -119,7 +123,9 @@ func (b bgpPeerConfigs) Passwords() []string {
 func (b bgpPeerConfigs) Ports() []uint32 {
 	ports := make([]uint32, len(b))
 	for i, cfg := range b {
-		ports[i] = cfg.Port
+		if cfg.Port != nil {
+			ports[i] = *cfg.Port
+		}
 	}
 	return ports
 }
@@ -127,7 +133,9 @@ func (b bgpPeerConfigs) Ports() []uint32 {
 func (b bgpPeerConfigs) RemoteASNs() []uint32 {
 	asns := make([]uint32, len(b))
 	for i, cfg := range b {
-		asns[i] = cfg.RemoteASN
+		if cfg.RemoteASN != nil {
+			asns[i] = *cfg.RemoteASN
+		}
 	}
 	return asns
 }
@@ -135,7 +143,9 @@ func (b bgpPeerConfigs) RemoteASNs() []uint32 {
 func (b bgpPeerConfigs) RemoteIPs() []net.IP {
 	remoteIPs := make([]net.IP, len(b))
 	for i, cfg := range b {
-		remoteIPs[i] = cfg.RemoteIP
+		if cfg.RemoteIP != nil {
+			remoteIPs[i] = *cfg.RemoteIP
+		}
 	}
 	return remoteIPs
 }
@@ -177,7 +187,7 @@ func bgpPeerConfigsFromIndividualAnnotations(nodeAnnotations map[string]string) 
 	}
 	peerConfigs := make([]bgpPeerConfig, len(peerASNs))
 	for i, peerASN := range peerASNs {
-		peerConfigs[i].RemoteASN = peerASN
+		peerConfigs[i].RemoteASN = &peerASN
 	}
 
 	// Get Global Peer Router IP Address configs
@@ -194,7 +204,7 @@ func bgpPeerConfigsFromIndividualAnnotations(nodeAnnotations map[string]string) 
 	}
 	for i, peerIP := range peerIPs {
 		peerConfigs[i].remoteIPString = ipStrings[i]
-		peerConfigs[i].RemoteIP = peerIP
+		peerConfigs[i].RemoteIP = &peerIP
 	}
 
 	// Get Global Peer Router ASN configs
@@ -208,7 +218,7 @@ func bgpPeerConfigsFromIndividualAnnotations(nodeAnnotations map[string]string) 
 			return nil, fmt.Errorf("failed to parse node's Peer Port Numbers Annotation: %w", err)
 		}
 		for i, port := range ports {
-			peerConfigs[i].Port = port
+			peerConfigs[i].Port = &port
 		}
 	}
 
@@ -225,7 +235,8 @@ func bgpPeerConfigsFromIndividualAnnotations(nodeAnnotations map[string]string) 
 			return nil, fmt.Errorf("failed to parse node's Peer Passwords Annotation: %w", err)
 		}
 		for i, password := range passwords {
-			peerConfigs[i].Password = Base64String(password)
+			bpassword := Base64String(password)
+			peerConfigs[i].Password = &bpassword
 		}
 	}
 
@@ -242,7 +253,7 @@ func bgpPeerConfigsFromIndividualAnnotations(nodeAnnotations map[string]string) 
 					if ip == nil {
 						return fmt.Errorf("could not parse \"%s\" as an IP", s)
 					}
-					peerConfigs[i].LocalIP = s
+					peerConfigs[i].LocalIP = &s
 				}
 			}
 			return nil
@@ -1278,7 +1289,7 @@ func (nrc *NetworkRoutingController) startBgpServer(grpcServer bool) error {
 			}
 			return err
 		}
-		// If both are nil, then we didn't receive an error. Just an exit early condition
+		// Early exit because no BGP peer info was set in annotations for the node
 		if peerCfgs == nil && err == nil {
 			return nil
 		}
