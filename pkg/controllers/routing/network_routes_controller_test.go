@@ -20,6 +20,11 @@ import (
 
 	gobgpapi "github.com/osrg/gobgp/v3/api"
 	gobgp "github.com/osrg/gobgp/v3/pkg/server"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_advertiseClusterIPs(t *testing.T) {
@@ -31,7 +36,6 @@ func Test_advertiseClusterIPs(t *testing.T) {
 		// the key is the subnet from the watch event
 		watchEvents map[string]bool
 	}{
-
 		{
 			"add bgp path for service with ClusterIP",
 			&NetworkRoutingController{
@@ -1933,7 +1937,6 @@ func Test_nodeHasEndpointsForService(t *testing.T) {
 				t.Logf("actual nodeHasEndpoints: %v", nodeHasEndpoints)
 				t.Error("unexpected nodeHasEndpoints")
 			}
-
 		})
 	}
 }
@@ -2649,7 +2652,151 @@ func Test_routeReflectorConfiguration(t *testing.T) {
 			}
 		})
 	}
+}
 
+// Helper functions for creating pointer types in tests
+func stringPtr(s string) *string {
+	return &s
+}
+
+func uint32Ptr(u uint32) *uint32 {
+	return &u
+}
+
+func base64StringPtr(s string) *Base64String {
+	b := Base64String(s)
+	return &b
+}
+
+func ipPtr(ip net.IP) *net.IP {
+	return &ip
+}
+
+func Test_bgpPeerConfigsFromAnnotations(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		nodeAnnotations        map[string]string
+		expectedBgpPeerConfigs bgpPeerConfigs
+		expectError            bool
+	}{
+		{
+			"node annotations are empty",
+			map[string]string{},
+			nil,
+			false,
+		},
+		{
+			"combined bgp peers config annotation",
+			map[string]string{
+				peersAnnotation: `- remoteip: 10.0.0.1
+  remoteasn: 64640
+  password: cGFzc3dvcmQ=
+  localip: 192.168.0.1
+- remoteip: 10.0.0.2
+  remoteasn: 64641
+  password: cGFzc3dvcmQ=
+  localip: 192.168.0.2`,
+			},
+			bgpPeerConfigs{
+				bgpPeerConfig{
+					RemoteIP:  ipPtr(net.ParseIP("10.0.0.1")),
+					RemoteASN: uint32Ptr(64640),
+					Password:  base64StringPtr("password"),
+					LocalIP:   stringPtr("192.168.0.1"),
+				},
+				bgpPeerConfig{
+					RemoteIP:  ipPtr(net.ParseIP("10.0.0.2")),
+					RemoteASN: uint32Ptr(64641),
+					Password:  base64StringPtr("password"),
+					LocalIP:   stringPtr("192.168.0.2"),
+				},
+			},
+			false,
+		},
+		{
+			"combined bgp peers config annotation without all fields set",
+			map[string]string{
+				peersAnnotation: `- remoteip: 10.0.0.1
+  remoteasn: 64640
+- remoteip: 10.0.0.2
+  remoteasn: 64641
+  password: cGFzc3dvcmQ=
+  localip: 192.168.0.2`,
+			},
+			bgpPeerConfigs{
+				bgpPeerConfig{
+					RemoteIP:  ipPtr(net.ParseIP("10.0.0.1")),
+					RemoteASN: uint32Ptr(64640),
+				},
+				bgpPeerConfig{
+					RemoteIP:  ipPtr(net.ParseIP("10.0.0.2")),
+					RemoteASN: uint32Ptr(64641),
+					Password:  base64StringPtr("password"),
+					LocalIP:   stringPtr("192.168.0.2"),
+				},
+			},
+			false,
+		},
+		{
+			"individual bgp peers config annotations",
+			map[string]string{
+				peerIPAnnotation:       "10.0.0.1,10.0.0.2",
+				peerASNAnnotation:      "64640,64641",
+				peerPasswordAnnotation: "cGFzc3dvcmQ=,cGFzc3dvcmQ=",
+				peerLocalIPAnnotation:  "192.168.0.1,192.168.0.2",
+			},
+			bgpPeerConfigs{
+				bgpPeerConfig{
+					RemoteIP:  ipPtr(net.ParseIP("10.0.0.1")),
+					RemoteASN: uint32Ptr(64640),
+					Password:  base64StringPtr("password"),
+					LocalIP:   stringPtr("192.168.0.1"),
+				},
+				bgpPeerConfig{
+					RemoteIP:  ipPtr(net.ParseIP("10.0.0.2")),
+					RemoteASN: uint32Ptr(64641),
+					Password:  base64StringPtr("password"),
+					LocalIP:   stringPtr("192.168.0.2"),
+				},
+			},
+			false,
+		},
+		{
+			"individual bgp peers config annotations without peer ASN annotation",
+			map[string]string{
+				peerASNAnnotation:      "64640,64641",
+				peerPasswordAnnotation: "cGFzc3dvcmQ=,cGFzc3dvcmQ=",
+				peerLocalIPAnnotation:  "192.168.0.1,192.168.0.2",
+			},
+			nil,
+			false,
+		},
+		{
+			"individual bgp peers config annotations without peer IP annotation",
+			map[string]string{
+				peerIPAnnotation:       "10.0.0.1,10.0.0.2",
+				peerPasswordAnnotation: "cGFzc3dvcmQ=,cGFzc3dvcmQ=",
+				peerLocalIPAnnotation:  "192.168.0.1,192.168.0.2",
+			},
+			nil,
+			false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			bgpPeerCfgs, err := bgpPeerConfigsFromAnnotations(tc.nodeAnnotations)
+			if tc.expectError {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			if !cmp.Equal(tc.expectedBgpPeerConfigs, bgpPeerCfgs, cmpopts.IgnoreUnexported(bgpPeerConfig{})) {
+				diff := cmp.Diff(tc.expectedBgpPeerConfigs, bgpPeerCfgs, cmpopts.IgnoreUnexported(bgpPeerConfig{}))
+				t.Errorf("BGP peer config mismatch:\n%s", diff)
+			}
+		})
+	}
 }
 
 /* Disabling test for now. OnNodeUpdate() behaviour is changed. test needs to be adopted.
