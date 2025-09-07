@@ -171,7 +171,7 @@ func bgpPeerConfigsFromAnnotations(nodeAnnotations map[string]string) (bgpPeerCo
 	if err := yaml.Unmarshal([]byte(nodeBgpPeersAnnotation), &peerConfigs); err != nil {
 		return nil, fmt.Errorf("failed to parse %s annotation: %w", peersAnnotation, err)
 	}
-	klog.V(2).Infof("Peer config from %s annotation: %+v", peersAnnotation, peerConfigs)
+	klog.Infof("Peer config from %s annotation: %+v", peersAnnotation, peerConfigs)
 	return peerConfigs, nil
 }
 

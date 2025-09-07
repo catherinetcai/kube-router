@@ -448,13 +448,16 @@ func (nrc *NetworkRoutingController) addExternalBGPPeersDefinedSet() (map[v1core
 
 	if len(nrc.globalPeerRouters) > 0 {
 		for _, peer := range nrc.globalPeerRouters {
+			klog.V(1).Infof("Appending peer %+v from global peer routers", peer)
 			externalBgpPeers = append(externalBgpPeers, peer.Conf.NeighborAddress)
 		}
 	}
 	if len(nrc.nodePeerRouters) > 0 {
+		klog.V(1).Infof("Appending peer %+v from node peer routers", nrc.nodePeerRoutes...)
 		externalBgpPeers = append(externalBgpPeers, nrc.nodePeerRouters...)
 	}
 	if len(externalBgpPeers) == 0 {
+		klog.V(1).Infof("returning early, no externalBgpPeers found")
 		return externalBGPPeerCIDRs, nil
 	}
 
