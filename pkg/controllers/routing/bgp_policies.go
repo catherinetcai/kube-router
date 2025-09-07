@@ -453,7 +453,7 @@ func (nrc *NetworkRoutingController) addExternalBGPPeersDefinedSet() (map[v1core
 		}
 	}
 	if len(nrc.nodePeerRouters) > 0 {
-		klog.V(1).Infof("Appending peer %+v from node peer routers", nrc.nodePeerRoutes...)
+		klog.V(1).Infof("Appending peer %+v from node peer routers", nrc.nodePeerRouters)
 		externalBgpPeers = append(externalBgpPeers, nrc.nodePeerRouters...)
 	}
 	if len(externalBgpPeers) == 0 {
