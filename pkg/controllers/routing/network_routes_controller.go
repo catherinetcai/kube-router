@@ -580,6 +580,7 @@ func (nrc *NetworkRoutingController) Run(healthChan chan<- *healthcheck.Controll
 			klog.Errorf("Error advertising route: %s", err.Error())
 		}
 
+		klog.V(1).Infof("Adding BGP policies: %+v", nrc)
 		err = nrc.AddPolicies()
 		if err != nil {
 			klog.Errorf("Error adding BGP policies: %s", err.Error())

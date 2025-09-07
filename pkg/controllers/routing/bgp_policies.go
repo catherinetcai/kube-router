@@ -44,9 +44,7 @@ const (
 	maxIPv6MaskSize = uint32(128)
 )
 
-var (
-	rePolicyVersionExtractor = regexp.MustCompile(`(kube_router_(?:import|export))(\d*)`)
-)
+var rePolicyVersionExtractor = regexp.MustCompile(`(kube_router_(?:import|export))(\d*)`)
 
 // AddPolicies adds BGP import and export policies
 func (nrc *NetworkRoutingController) AddPolicies() error {
@@ -445,7 +443,6 @@ func (nrc *NetworkRoutingController) addiBGPPeersDefinedSet() (map[v1core.IPFami
 }
 
 func (nrc *NetworkRoutingController) addExternalBGPPeersDefinedSet() (map[v1core.IPFamily][]string, error) {
-
 	externalBgpPeers := make([]string, 0)
 	externalBGPPeerCIDRs := make(map[v1core.IPFamily][]string)
 
@@ -463,13 +460,15 @@ func (nrc *NetworkRoutingController) addExternalBGPPeersDefinedSet() (map[v1core
 
 	for family, extPeerSetName := range map[v1core.IPFamily]string{
 		v1core.IPv4Protocol: externalPeerSet,
-		v1core.IPv6Protocol: externalPeerSetV6} {
+		v1core.IPv6Protocol: externalPeerSetV6,
+	} {
 		currentDefinedSet, err := nrc.getDefinedSetFromGoBGP(extPeerSetName, gobgpapi.DefinedType_NEIGHBOR)
 		if err != nil {
 			return externalBGPPeerCIDRs, err
 		}
 
 		for _, peer := range externalBgpPeers {
+			klog.Infof("Adding peer %+v to set", peer)
 			ip := net.ParseIP(peer)
 			if ip == nil {
 				klog.Warningf("wasn't able to parse the IP of peer: %s - skipping!", peer)
@@ -508,11 +507,12 @@ func (nrc *NetworkRoutingController) addExternalBGPPeersDefinedSet() (map[v1core
 
 // a slice of all peers is used as a match condition for reject statement of servicevipsdefinedset import policy
 func (nrc *NetworkRoutingController) addAllBGPPeersDefinedSet(
-	iBGPPeerCIDRs, externalBGPPeerCIDRs map[v1core.IPFamily][]string) error {
-
+	iBGPPeerCIDRs, externalBGPPeerCIDRs map[v1core.IPFamily][]string,
+) error {
 	for family, allPeerSetName := range map[v1core.IPFamily]string{
 		v1core.IPv4Protocol: allPeerSet,
-		v1core.IPv6Protocol: allPeerSetV6} {
+		v1core.IPv6Protocol: allPeerSetV6,
+	} {
 		var currentDefinedSet *gobgpapi.DefinedSet
 		currentDefinedSet, err := nrc.getDefinedSetFromGoBGP(allPeerSetName, gobgpapi.DefinedType_NEIGHBOR)
 		if err != nil {
@@ -974,7 +974,8 @@ func (nrc *NetworkRoutingController) addImportPolicies() error {
 
 // getDefinedSetFromGoBGP abstracts the logic for getting a DefinedSet object back for a given set type and name
 func (nrc *NetworkRoutingController) getDefinedSetFromGoBGP(name string,
-	defType gobgpapi.DefinedType) (defSet *gobgpapi.DefinedSet, err error) {
+	defType gobgpapi.DefinedType,
+) (defSet *gobgpapi.DefinedSet, err error) {
 	err = nrc.bgpServer.ListDefinedSet(context.Background(),
 		&gobgpapi.ListDefinedSetRequest{
 			DefinedType: defType,
@@ -1042,7 +1043,8 @@ func (nrc *NetworkRoutingController) ensureStatementExists(st *gobgpapi.Statemen
 }
 
 func (nrc *NetworkRoutingController) incrementAndCreatePolicy(curPolName string,
-	newPolicy *gobgpapi.Policy) error {
+	newPolicy *gobgpapi.Policy,
+) error {
 	// Get the current policy version and increment it
 	polVer := 0
 	polBaseName := ""
@@ -1079,7 +1081,8 @@ func (nrc *NetworkRoutingController) incrementAndCreatePolicy(curPolName string,
 }
 
 func (nrc *NetworkRoutingController) assignPolicyByName(newPolicy *gobgpapi.Policy,
-	polDir gobgpapi.PolicyDirection, defaultAct gobgpapi.RouteAction) error {
+	polDir gobgpapi.PolicyDirection, defaultAct gobgpapi.RouteAction,
+) error {
 	policyAssignmentExists := false
 
 	// check to see if the policy is already assigned
@@ -1117,7 +1120,8 @@ func (nrc *NetworkRoutingController) assignPolicyByName(newPolicy *gobgpapi.Poli
 }
 
 func (nrc *NetworkRoutingController) unassignAndRemovePolicy(policyName string,
-	polDir gobgpapi.PolicyDirection, defaultAct gobgpapi.RouteAction) error {
+	polDir gobgpapi.PolicyDirection, defaultAct gobgpapi.RouteAction,
+) error {
 	err := nrc.bgpServer.DeletePolicyAssignment(context.Background(), &gobgpapi.DeletePolicyAssignmentRequest{
 		Assignment: &gobgpapi.PolicyAssignment{
 			Name:      "global",
