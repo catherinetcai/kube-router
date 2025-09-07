@@ -153,7 +153,9 @@ func (b bgpPeerConfigs) RemoteIPs() []net.IP {
 func (b bgpPeerConfigs) RemoteIPStrings() []string {
 	remoteIPs := make([]string, len(b))
 	for i, cfg := range b {
-		remoteIPs[i] = cfg.remoteIPString
+		if cfg.remoteIPString != "" {
+			remoteIPs[i] = cfg.remoteIPString
+		}
 	}
 	return remoteIPs
 }
