@@ -171,6 +171,7 @@ func bgpPeerConfigsFromAnnotations(nodeAnnotations map[string]string) (bgpPeerCo
 	if err := yaml.Unmarshal([]byte(nodeBgpPeersAnnotation), &peerConfigs); err != nil {
 		return nil, fmt.Errorf("failed to parse %s annotation: %w", peersAnnotation, err)
 	}
+	klog.V(2).Infof("Peer config from %s annotation: %+v", peersAnnotation, peerConfigs)
 	return peerConfigs, nil
 }
 
@@ -1284,6 +1285,7 @@ func (nrc *NetworkRoutingController) startBgpServer(grpcServer bool) error {
 	// If the global routing peer is configured then peer with it
 	// else attempt to get peers from node specific BGP annotations.
 	if len(nrc.globalPeerRouters) == 0 {
+		klog.V(2).Infof("Attempting to construct peer configs from annotation: %+v", node.Annotations)
 		peerCfgs, err := bgpPeerConfigsFromAnnotations(node.Annotations)
 		if err != nil {
 			err2 := nrc.bgpServer.StopBgp(context.Background(), &gobgpapi.StopBgpRequest{})
