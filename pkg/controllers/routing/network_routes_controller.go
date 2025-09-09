@@ -101,60 +101,60 @@ type bgpPeerConfig struct {
 type bgpPeerConfigs []bgpPeerConfig
 
 func (b bgpPeerConfigs) LocalIPs() []string {
-	localIPs := make([]string, len(b))
-	for i, cfg := range b {
+	localIPs := make([]string, 0)
+	for _, cfg := range b {
 		if cfg.LocalIP != nil {
-			localIPs[i] = *cfg.LocalIP
+			localIPs = append(localIPs, *cfg.LocalIP)
 		}
 	}
 	return localIPs
 }
 
 func (b bgpPeerConfigs) Passwords() []string {
-	passwords := make([]string, len(b))
-	for i, cfg := range b {
+	passwords := make([]string, 0)
+	for _, cfg := range b {
 		if cfg.Password != nil {
-			passwords[i] = string(*cfg.Password)
+			passwords = append(passwords, string(*cfg.Password))
 		}
 	}
 	return passwords
 }
 
 func (b bgpPeerConfigs) Ports() []uint32 {
-	ports := make([]uint32, len(b))
-	for i, cfg := range b {
+	ports := make([]uint32, 0)
+	for _, cfg := range b {
 		if cfg.Port != nil {
-			ports[i] = *cfg.Port
+			ports = append(ports, *cfg.Port)
 		}
 	}
 	return ports
 }
 
 func (b bgpPeerConfigs) RemoteASNs() []uint32 {
-	asns := make([]uint32, len(b))
-	for i, cfg := range b {
+	asns := make([]uint32, 0)
+	for _, cfg := range b {
 		if cfg.RemoteASN != nil {
-			asns[i] = *cfg.RemoteASN
+			asns = append(asns, *cfg.RemoteASN)
 		}
 	}
 	return asns
 }
 
 func (b bgpPeerConfigs) RemoteIPs() []net.IP {
-	remoteIPs := make([]net.IP, len(b))
-	for i, cfg := range b {
+	remoteIPs := make([]net.IP, 0)
+	for _, cfg := range b {
 		if cfg.RemoteIP != nil {
-			remoteIPs[i] = *cfg.RemoteIP
+			remoteIPs = append(remoteIPs, *cfg.RemoteIP)
 		}
 	}
 	return remoteIPs
 }
 
 func (b bgpPeerConfigs) RemoteIPStrings() []string {
-	remoteIPs := make([]string, len(b))
-	for i, cfg := range b {
+	remoteIPs := make([]string, 0)
+	for _, cfg := range b {
 		if cfg.remoteIPString != "" {
-			remoteIPs[i] = cfg.remoteIPString
+			remoteIPs = append(remoteIPs, cfg.remoteIPString)
 		}
 	}
 	return remoteIPs

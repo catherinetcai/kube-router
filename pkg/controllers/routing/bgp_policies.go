@@ -443,21 +443,23 @@ func (nrc *NetworkRoutingController) addiBGPPeersDefinedSet() (map[v1core.IPFami
 }
 
 func (nrc *NetworkRoutingController) addExternalBGPPeersDefinedSet() (map[v1core.IPFamily][]string, error) {
+	klog.Infof("=== ENTERING addExternalBGPPeersDefinedSet ===")
 	externalBgpPeers := make([]string, 0)
 	externalBGPPeerCIDRs := make(map[v1core.IPFamily][]string)
 
+	klog.Infof("globalPeerRouters length: %d, nodePeerRouters length: %d", len(nrc.globalPeerRouters), len(nrc.nodePeerRouters))
 	if len(nrc.globalPeerRouters) > 0 {
 		for _, peer := range nrc.globalPeerRouters {
-			klog.V(1).Infof("Appending peer %+v from global peer routers", peer)
+			klog.Infof("Appending peer %+v from global peer routers", peer)
 			externalBgpPeers = append(externalBgpPeers, peer.Conf.NeighborAddress)
 		}
 	}
 	if len(nrc.nodePeerRouters) > 0 {
-		klog.V(1).Infof("Appending peer %+v from node peer routers", nrc.nodePeerRouters)
+		klog.Infof("Appending peer %+v from node peer routers", nrc.nodePeerRouters)
 		externalBgpPeers = append(externalBgpPeers, nrc.nodePeerRouters...)
 	}
 	if len(externalBgpPeers) == 0 {
-		klog.V(1).Infof("returning early, no externalBgpPeers found")
+		klog.Infof("returning early, no externalBgpPeers found")
 		return externalBGPPeerCIDRs, nil
 	}
 
@@ -470,6 +472,7 @@ func (nrc *NetworkRoutingController) addExternalBGPPeersDefinedSet() (map[v1core
 			return externalBGPPeerCIDRs, err
 		}
 
+		klog.Infof("Adding all externalBgpPeers: %+v", externalBgpPeers)
 		for _, peer := range externalBgpPeers {
 			klog.Infof("Adding peer %+v to set", peer)
 			ip := net.ParseIP(peer)
