@@ -1850,11 +1850,11 @@ func Test_nodeHasEndpointsForService(t *testing.T) {
 						Addresses: []v1core.EndpointAddress{
 							{
 								IP:       "172.20.1.1",
-								NodeName: ptrToString("node-1"),
+								NodeName: valToPtr("node-1"),
 							},
 							{
 								IP:       "172.20.1.2",
-								NodeName: ptrToString("node-2"),
+								NodeName: valToPtr("node-2"),
 							},
 						},
 					},
@@ -1896,11 +1896,11 @@ func Test_nodeHasEndpointsForService(t *testing.T) {
 						Addresses: []v1core.EndpointAddress{
 							{
 								IP:       "172.20.1.1",
-								NodeName: ptrToString("node-2"),
+								NodeName: valToPtr("node-2"),
 							},
 							{
 								IP:       "172.20.1.2",
-								NodeName: ptrToString("node-3"),
+								NodeName: valToPtr("node-3"),
 							},
 						},
 					},
@@ -2654,24 +2654,6 @@ func Test_routeReflectorConfiguration(t *testing.T) {
 	}
 }
 
-// Helper functions for creating pointer types in tests
-func stringPtr(s string) *string {
-	return &s
-}
-
-func uint32Ptr(u uint32) *uint32 {
-	return &u
-}
-
-func base64StringPtr(s string) *Base64String {
-	b := Base64String(s)
-	return &b
-}
-
-func ipPtr(ip net.IP) *net.IP {
-	return &ip
-}
-
 func Test_bgpPeerConfigsFromAnnotations(t *testing.T) {
 	testCases := []struct {
 		name                   string
@@ -2699,16 +2681,16 @@ func Test_bgpPeerConfigsFromAnnotations(t *testing.T) {
 			},
 			bgpPeerConfigs{
 				bgpPeerConfig{
-					RemoteIP:  ipPtr(net.ParseIP("10.0.0.1")),
-					RemoteASN: uint32Ptr(64640),
-					Password:  base64StringPtr("password"),
-					LocalIP:   stringPtr("192.168.0.1"),
+					RemoteIP:  valToPtr(net.ParseIP("10.0.0.1")),
+					RemoteASN: valToPtr(uint32(64640)),
+					Password:  valToPtr(utils.Base64String("password")),
+					LocalIP:   valToPtr("192.168.0.1"),
 				},
 				bgpPeerConfig{
-					RemoteIP:  ipPtr(net.ParseIP("10.0.0.2")),
-					RemoteASN: uint32Ptr(64641),
-					Password:  base64StringPtr("password"),
-					LocalIP:   stringPtr("192.168.0.2"),
+					RemoteIP:  valToPtr(net.ParseIP("10.0.0.2")),
+					RemoteASN: valToPtr(uint32(64641)),
+					Password:  valToPtr(utils.Base64String("password")),
+					LocalIP:   valToPtr("192.168.0.2"),
 				},
 			},
 			false,
@@ -2725,14 +2707,14 @@ func Test_bgpPeerConfigsFromAnnotations(t *testing.T) {
 			},
 			bgpPeerConfigs{
 				bgpPeerConfig{
-					RemoteIP:  ipPtr(net.ParseIP("10.0.0.1")),
-					RemoteASN: uint32Ptr(64640),
+					RemoteIP:  valToPtr(net.ParseIP("10.0.0.1")),
+					RemoteASN: valToPtr(uint32(64640)),
 				},
 				bgpPeerConfig{
-					RemoteIP:  ipPtr(net.ParseIP("10.0.0.2")),
-					RemoteASN: uint32Ptr(64641),
-					Password:  base64StringPtr("password"),
-					LocalIP:   stringPtr("192.168.0.2"),
+					RemoteIP:  valToPtr(net.ParseIP("10.0.0.2")),
+					RemoteASN: valToPtr(uint32(64641)),
+					Password:  valToPtr(utils.Base64String("password")),
+					LocalIP:   valToPtr("192.168.0.2"),
 				},
 			},
 			false,
@@ -2747,16 +2729,16 @@ func Test_bgpPeerConfigsFromAnnotations(t *testing.T) {
 			},
 			bgpPeerConfigs{
 				bgpPeerConfig{
-					RemoteIP:  ipPtr(net.ParseIP("10.0.0.1")),
-					RemoteASN: uint32Ptr(64640),
-					Password:  base64StringPtr("password"),
-					LocalIP:   stringPtr("192.168.0.1"),
+					RemoteIP:  valToPtr(net.ParseIP("10.0.0.1")),
+					RemoteASN: valToPtr(uint32(64640)),
+					Password:  valToPtr(utils.Base64String("password")),
+					LocalIP:   valToPtr("192.168.0.1"),
 				},
 				bgpPeerConfig{
-					RemoteIP:  ipPtr(net.ParseIP("10.0.0.2")),
-					RemoteASN: uint32Ptr(64641),
-					Password:  base64StringPtr("password"),
-					LocalIP:   stringPtr("192.168.0.2"),
+					RemoteIP:  valToPtr(net.ParseIP("10.0.0.2")),
+					RemoteASN: valToPtr(uint32(64641)),
+					Password:  valToPtr(utils.Base64String("password")),
+					LocalIP:   valToPtr("192.168.0.2"),
 				},
 			},
 			false,
@@ -3032,6 +3014,17 @@ func waitForListerWithTimeout(lister cache.Indexer, timeout time.Duration, t *te
 	}
 }
 
-func ptrToString(str string) *string {
-	return &str
+type value interface {
+	string | uint32 | net.IP | utils.Base64String
+}
+
+func valToPtr[V value](v V) *V {
+	return &v
+}
+
+func ptrToVal[V value](v *V) V {
+	if v == nil {
+		return *new(V)
+	}
+	return *v
 }
