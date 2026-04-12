@@ -21,11 +21,11 @@ on:
         required: true
         type: string
         default: cloudnativelabs/kube-router-git
-    secrets:
-      DOCKERHUB_USERNAME:
-        required: true
-      DOCKERHUB_TOKEN:
-        required: true
+    # secrets:
+    #   DOCKERHUB_USERNAME:
+    #     required: true
+    #   DOCKERHUB_TOKEN:
+    #     required: true
 
 permissions:
   contents: read
