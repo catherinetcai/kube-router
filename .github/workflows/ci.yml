@@ -43,6 +43,7 @@ jobs:
       contents: read
       id-token: write
       attestations: write
+      packages: write
     uses: ./.github/workflows/ci-container.yml
     with:
       buildtime-base: *buildtime_base
