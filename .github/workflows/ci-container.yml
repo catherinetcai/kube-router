@@ -11,208 +11,273 @@ on:
         description: The Docker image to use as the container runtime base
         required: true
         type: string
-    secrets:
-      DOCKERHUB_USERNAME:
+      image-repo:
+        description: The Docker Hub repository for release images (e.g. cloudnativelabs/kube-router)
         required: true
-      DOCKERHUB_TOKEN:
+        type: string
+        default: cloudnativelabs/kube-router
+      git-image-repo:
+        description: The Docker Hub repository for branch/PR images (e.g. cloudnativelabs/kube-router-git)
         required: true
+        type: string
+        default: cloudnativelabs/kube-router-git
+    # secrets:
+    #   DOCKERHUB_USERNAME:
+    #     required: true
+    #   DOCKERHUB_TOKEN:
+    #     required: true
 
 permissions:
   contents: read
   id-token: write
   attestations: write
+  packages: write
 
 jobs:
-  # Builds and pushes the container image for branch pushes, PRs, and release tags.
-  # On tag events, also signs the image and attests a signed SBOM to DockerHub via cosign.
+  # Builds and pushes per-architecture images in parallel via a matrix strategy.
+  # For PRs, builds a single-arch amd64 image only (fast feedback).
   ci-build-container:
     name: ci-build-container
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
+          - linux/arm/v7
+          - linux/s390x
+          - linux/ppc64le
+      fail-fast: false
+    outputs:
+      pr-image-tag: ${{ steps.pr_tag.outputs.tag }}
     steps:
-    # Check out the repository so the Dockerfile and source are available to the build.
-    - name: Checkout
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      # Check out the repository so the Dockerfile and source are available to the build.
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-    # Register QEMU emulators so Docker Buildx can build non-native architectures (arm, s390x, etc).
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a  # v4.0.0
+      # Register QEMU emulators so Docker Buildx can build non-native architectures (arm, s390x, etc).
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
-    # Create a multi-platform-capable Buildx builder instance on the runner.
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4.0.0
+      # Create a multi-platform-capable Buildx builder instance on the runner.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
-    # Authenticate to DockerHub so subsequent push steps and cosign attestation pushes succeed.
-    - name: Login to DockerHub
-      uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2  # v4.0.0
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Authenticate to the container registry so subsequent push steps and cosign attestation pushes succeed.
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    # Install cosign once for all tag-based signing and attestation steps below.
-    # Uses keyless signing — no private key required; identity is proven via the GitHub Actions
-    # OIDC token issued to this workflow, rooted in Sigstore Fulcio and logged in Rekor.
-    - name: Install cosign
-      if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-      uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22  # v4.1.0
+      # Build and push a single-arch (amd64) image tagged with the PR number for pull requests.
+      # Multi-arch is skipped here as it adds 30+ minutes to PR feedback time.
+      - name: Build and push - New PR
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        if: github.event_name == 'pull_request'
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          build-args: |
+            BUILDTIME_BASE=${{ inputs.buildtime-base }}
+            RUNTIME_BASE=${{ inputs.runtime-base }}
+          tags: ${{ inputs.git-image-repo }}:PR-${{ github.event.pull_request.number }}
 
-    # Parse the branch name from GITHUB_REF for use as the image tag on non-tag branch pushes.
-    - name: Extract branch from github ref - New Push
-      if: ${{ startsWith(github.ref, 'refs/tags/v') != true && github.event_name != 'pull_request' }}
-      shell: bash
-      run: echo "branch=${GITHUB_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
-      id: extract_branch
+      - name: Set PR image tag output
+        if: github.event_name == 'pull_request'
+        id: pr_tag
+        run: echo "tag=${{ inputs.git-image-repo }}:PR-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
 
-    # Parse the version tag from GITHUB_REF for use as the image tag on tag pushes.
-    - name: Extract tag from github ref - New Release
-      if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-      shell: bash
-      run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-      id: extract_tag
+      # ---------------------------------------------------------------------------
+      # Branch push and tag builds: build one architecture per matrix instance.
+      # Skipped for PRs (handled above in the PR-specific step).
+      # ---------------------------------------------------------------------------
 
-    # Build and push a multi-arch image tagged with the branch name on direct pushes to tracked
-    # branches (master, v*, prep-v*). Not run on PRs or tag pushes.
-    - name: Build and push - New Push
-      uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7.0.0
-      if: ${{ startsWith(github.ref, 'refs/tags/v') != true && github.event_name != 'pull_request' }}
-      with:
-        context: .
-        platforms: |
-          linux/amd64
-          linux/arm64
-          linux/arm/v7
-          linux/s390x
-          linux/ppc64le
-        push: true
-        build-args: |
-          BUILDTIME_BASE=${{ inputs.buildtime-base }}
-          RUNTIME_BASE=${{ inputs.runtime-base }}
-        tags: cloudnativelabs/kube-router-git:${{ steps.extract_branch.outputs.branch }}
+      # Derive a filesystem-safe suffix from the platform string (e.g. linux/amd64 -> linux-amd64)
+      - name: Derive platform suffix
+        if: github.event_name != 'pull_request'
+        id: platform_suffix
+        run: echo "suffix=${PLATFORM//\//-}" >> "$GITHUB_OUTPUT"
+        env:
+          PLATFORM: ${{ matrix.platform }}
 
-    # Build and push a single-arch (amd64) image tagged with the PR number for pull requests.
-    # Multi-arch is skipped here as it adds 30+ minutes to PR feedback time.
-    - name: Build and push - New PR
-      uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7.0.0
-      if: github.event_name == 'pull_request'
-      with:
-        context: .
-        platforms: linux/amd64
-        push: true
-        provenance: false
-        build-args: |
-          BUILDTIME_BASE=${{ inputs.buildtime-base }}
-          RUNTIME_BASE=${{ inputs.runtime-base }}
-        tags: cloudnativelabs/kube-router-git:PR-${{ github.event.pull_request.number }}
+      # Parse the branch name from GITHUB_REF for use as the image tag on non-tag branch pushes.
+      - name: Extract branch from github ref - New Push
+        if: ${{ startsWith(github.ref, 'refs/tags/v') != true && github.event_name != 'pull_request' }}
+        shell: bash
+        run: echo "branch=${GITHUB_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
+        id: extract_branch
 
-    # -----------------------------------------------------------------------------------------
-    # Release Candidate tag (e.g. v2.8.0-rc1): build, sign, generate SBOM, and attest to registry.
-    # The `latest` tag is NOT updated for release candidates.
-    # -----------------------------------------------------------------------------------------
+      # Parse the version tag from GITHUB_REF for use as the image tag on tag pushes.
+      - name: Extract tag from github ref - New Release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+        id: extract_tag
 
-    # Build and push the multi-arch release candidate image. The step id captures the digest
-    # so subsequent signing and attestation steps can reference the exact immutable image.
-    - name: Build and push - New Tag (Release Candidate)
-      uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7.0.0
-      id: push_rc
-      if: ${{ startsWith(github.ref, 'refs/tags/v') && contains(github.ref, '-rc') }}
-      with:
-        context: .
-        platforms: |
-          linux/amd64
-          linux/arm64
-          linux/arm/v7
-          linux/s390x
-          linux/ppc64le
-        push: true
-        build-args: |
-          BUILDTIME_BASE=${{ inputs.buildtime-base }}
-          RUNTIME_BASE=${{ inputs.runtime-base }}
-        tags: |
-          cloudnativelabs/kube-router:${{ steps.extract_tag.outputs.tag }}
+      # Build and push a single-arch image for branch pushes (master, v*, prep-v*).
+      # Tagged with branch name + platform suffix (e.g. kube-router-git:master-linux-amd64).
+      - name: Build and push per-arch - New Push
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        if: ${{ startsWith(github.ref, 'refs/tags/v') != true && github.event_name != 'pull_request' }}
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          push: true
+          provenance: false
+          build-args: |
+            BUILDTIME_BASE=${{ inputs.buildtime-base }}
+            RUNTIME_BASE=${{ inputs.runtime-base }}
+          tags: ${{ inputs.git-image-repo }}:${{ steps.extract_branch.outputs.branch }}-${{ steps.platform_suffix.outputs.suffix }}
 
-    # Sign the RC image digest with cosign (keyless). The signature is pushed to DockerHub as a
-    # sibling OCI artifact and the signing event is recorded in the Rekor transparency log.
-    # Verify with: cosign verify --certificate-identity-regexp "https://github.com/cloudnativelabs/.*"
-    #   --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
-    #   cloudnativelabs/kube-router:<rc-tag>
-    - name: Sign container image - New Tag (Release Candidate)
-      if: ${{ startsWith(github.ref, 'refs/tags/v') && contains(github.ref, '-rc') }}
-      run: cosign sign --yes cloudnativelabs/kube-router@${{ steps.push_rc.outputs.digest }}
+      # Build and push a single-arch image for tag pushes (both RC and production).
+      # Tagged with version + platform suffix (e.g. kube-router:v2.8.0-linux-amd64).
+      - name: Build and push per-arch - New Tag
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        id: push_tag
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          push: true
+          provenance: false
+          build-args: |
+            BUILDTIME_BASE=${{ inputs.buildtime-base }}
+            RUNTIME_BASE=${{ inputs.runtime-base }}
+          tags: ${{ inputs.image-repo }}:${{ steps.extract_tag.outputs.tag }}-${{ steps.platform_suffix.outputs.suffix }}
 
-    # Generate an SPDX-JSON SBOM for the RC image using Syft. The SBOM is written to a local
-    # file for the attestation step and also uploaded as a workflow artifact.
-    - name: Generate SBOM for container image - New Tag (Release Candidate)
-      uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
-      id: sbom_rc
-      if: ${{ startsWith(github.ref, 'refs/tags/v') && contains(github.ref, '-rc') }}
-      with:
-        image: cloudnativelabs/kube-router@${{ steps.push_rc.outputs.digest }}
-        format: spdx-json
-        artifact-name: kube-router-${{ github.ref_name }}-image-sbom.spdx.json
-        output-file: ./container-sbom-rc.spdx.json
+  # Merges per-architecture images into a multi-arch manifest list and pushes it.
+  # Skipped for PRs (PR builds are single-arch amd64 only).
+  ci-manifest-merge:
+    name: ci-manifest-merge
+    if: github.event_name != 'pull_request'
+    needs: ci-build-container
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.merge.outputs.digest }}
+    steps:
+      # Check out the repository so the Dockerfile and source are available to the build.
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-    # Wrap the SBOM in a signed in-toto attestation and push it to DockerHub alongside the image.
-    # Users can retrieve and verify it with:
-    #   cosign verify-attestation --type spdxjson
-    #     --certificate-identity-regexp "https://github.com/cloudnativelabs/.*"
-    #     --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
-    #     cloudnativelabs/kube-router:<rc-tag> | jq -r '.payload' | base64 -d | jq '.predicate'
-    - name: Attest SBOM to container image - New Tag (Release Candidate)
-      if: ${{ startsWith(github.ref, 'refs/tags/v') && contains(github.ref, '-rc') }}
-      run: |
-        cosign attest --yes \
-          --predicate ./container-sbom-rc.spdx.json \
-          --type spdxjson \
-          cloudnativelabs/kube-router@${{ steps.push_rc.outputs.digest }}
+      # Create a multi-platform-capable Buildx builder instance on the runner.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
-    # -----------------------------------------------------------------------------------------
-    # Production release tag (e.g. v2.8.0): build, sign, generate SBOM, and attest to registry.
-    # Both the versioned tag and `latest` are updated.
-    # -----------------------------------------------------------------------------------------
+      # Authenticate to the container registry so subsequent push steps and cosign attestation pushes succeed.
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    # Build and push the multi-arch production release image. Updates both the versioned tag and
-    # `latest`. The step id captures the digest for signing and attestation.
-    - name: Build and push - New Tag
-      uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7.0.0
-      id: push_release
-      if: ${{ startsWith(github.ref, 'refs/tags/v') && ! contains(github.ref, '-rc') }}
-      with:
-        context: .
-        platforms: |
-          linux/amd64
-          linux/arm64
-          linux/arm/v7
-          linux/s390x
-          linux/ppc64le
-        push: true
-        build-args: |
-          BUILDTIME_BASE=${{ inputs.buildtime-base }}
-          RUNTIME_BASE=${{ inputs.runtime-base }}
-        tags: |
-          cloudnativelabs/kube-router:${{ steps.extract_tag.outputs.tag }}
-          cloudnativelabs/kube-router:latest
+      # Determine the source per-arch tags and the target manifest tag.
+      # Uses the same suffix convention as the build job (e.g. linux-amd64).
+      - name: Resolve image tags
+        id: resolve_tags
+        shell: bash
+        run: |
+          PLATFORMS="linux-amd64 linux-arm64 linux-arm-v7 linux-s390x linux-ppc64le"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            if [[ "${GITHUB_REF}" != *"-rc"* ]]; then
+              TARGET="${{ inputs.image-repo }}:${TAG},${{ inputs.image-repo }}:latest"
+            else
+              TARGET="${{ inputs.image-repo }}:${TAG}"
+            fi
+            SOURCE_PREFIX="${{ inputs.image-repo }}:${TAG}"
+          else
+            BRANCH="${GITHUB_REF#refs/heads/}"
+            TARGET="${{ inputs.git-image-repo }}:${BRANCH}"
+            SOURCE_PREFIX="${{ inputs.git-image-repo }}:${BRANCH}"
+          fi
 
-    # Sign the production release image digest with cosign (keyless). Same verification command
-    # as the RC step above, using the production release tag.
-    - name: Sign container image - New Tag
-      if: ${{ startsWith(github.ref, 'refs/tags/v') && ! contains(github.ref, '-rc') }}
-      run: cosign sign --yes cloudnativelabs/kube-router@${{ steps.push_release.outputs.digest }}
+          SOURCES=""
+          for p in ${PLATFORMS}; do
+            SOURCES="${SOURCES} ${SOURCE_PREFIX}-${p}"
+          done
 
-    # Generate an SPDX-JSON SBOM for the production release image using Syft.
-    - name: Generate SBOM for container image - New Tag
-      uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
-      id: sbom_release
-      if: ${{ startsWith(github.ref, 'refs/tags/v') && ! contains(github.ref, '-rc') }}
-      with:
-        image: cloudnativelabs/kube-router@${{ steps.push_release.outputs.digest }}
-        format: spdx-json
-        artifact-name: kube-router-${{ github.ref_name }}-image-sbom.spdx.json
-        output-file: ./container-sbom-release.spdx.json
+          echo "target=${TARGET}" >> "$GITHUB_OUTPUT"
+          echo "sources=${SOURCES# }" >> "$GITHUB_OUTPUT"
 
-    # Wrap the SBOM in a signed in-toto attestation and push it to DockerHub alongside the image.
-    - name: Attest SBOM to container image - New Tag
-      if: ${{ startsWith(github.ref, 'refs/tags/v') && ! contains(github.ref, '-rc') }}
-      run: |
-        cosign attest --yes \
-          --predicate ./container-sbom-release.spdx.json \
-          --type spdxjson \
-          cloudnativelabs/kube-router@${{ steps.push_release.outputs.digest }}
+      # Create a multi-arch manifest list from the per-arch images and push it.
+      # imagetools create pulls the per-arch images by tag, assembles the manifest,
+      # and pushes it with the target tag(s).
+      - name: Create and push multi-arch manifest
+        id: merge
+        shell: bash
+        run: |
+          DIGEST=$(docker buildx imagetools create \
+            --tag "${{ steps.resolve_tags.outputs.target }}" \
+            ${{ steps.resolve_tags.outputs.sources }} \
+            | grep -oP 'sha256:\K[a-f0-9]+' | head -1)
+          echo "digest=sha256:${DIGEST}" >> "$GITHUB_OUTPUT"
+
+  # Signs the multi-arch manifest and generates/attaches an SBOM.
+  # Only runs on tag pushes (RC and production).
+  ci-sign-and-attest:
+    name: ci-sign-and-attest
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    needs: ci-manifest-merge
+    runs-on: ubuntu-latest
+    steps:
+      # Check out the repository so the Dockerfile and source are available to the build.
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Authenticate to the container registry so subsequent push steps and cosign attestation pushes succeed.
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Install cosign once for all tag-based signing and attestation steps below.
+      # Uses keyless signing — no private key required; identity is proven via the GitHub Actions
+      # OIDC token issued to this workflow, rooted in Sigstore Fulcio and logged in Rekor.
+      - name: Install cosign
+        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
+
+      # Determine the image reference. Both RC and production use cloudnativelabs/kube-router.
+      - name: Resolve image reference
+        id: resolve_image
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "image=${{ inputs.image-repo }}:${TAG}" >> "$GITHUB_OUTPUT"
+
+      # Sign the manifest digest with cosign (keyless). The signature is pushed to DockerHub as a
+      # sibling OCI artifact and the signing event is recorded in the Rekor transparency log.
+      # Verify with: cosign verify --certificate-identity-regexp "https://github.com/cloudnativelabs/.*"
+      #   --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
+      #   cloudnativelabs/kube-router:<tag>
+      - name: Sign container image
+        run: cosign sign --yes ${{ steps.resolve_image.outputs.image }}@${{ needs.ci-manifest-merge.outputs.digest }}
+
+      # Generate an SPDX-JSON SBOM for the multi-arch image using Syft. The SBOM is written to a local
+      # file for the attestation step and also uploaded as a workflow artifact.
+      - name: Generate SBOM for container image
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ steps.resolve_image.outputs.image }}@${{ needs.ci-manifest-merge.outputs.digest }}
+          format: spdx-json
+          artifact-name: kube-router-${{ github.ref_name }}-image-sbom.spdx.json
+          output-file: ./container-sbom.spdx.json
+
+      # Wrap the SBOM in a signed in-toto attestation and push it to DockerHub alongside the image.
+      # Users can retrieve and verify it with:
+      #   cosign verify-attestation --type spdxjson
+      #     --certificate-identity-regexp "https://github.com/cloudnativelabs/.*"
+      #     --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
+      #     cloudnativelabs/kube-router:<tag> | jq -r '.payload' | base64 -d | jq '.predicate'
+      - name: Attest SBOM to container image
+        run: |
+          cosign attest --yes \
+            --predicate ./container-sbom.spdx.json \
+            --type spdxjson \
+            ${{ steps.resolve_image.outputs.image }}@${{ needs.ci-manifest-merge.outputs.digest }}

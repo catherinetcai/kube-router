@@ -3,16 +3,16 @@ name: continuous-integration
 on:
   push:
     branches:
-    - master
-    - v[1-9].*
-    - prep-v[1-9].*
+      - master
+      - v[1-9].*
+      - prep-v[1-9].*
     tags:
-    - v[1-9].*
+      - v[1-9].*
   pull_request:
     branches:
-    - master
-    - v[1-9].*
-    - prep-v[1-9].*
+      - master
+      - v[1-9].*
+      - prep-v[1-9].*
 
 permissions:
   contents: read
@@ -43,13 +43,16 @@ jobs:
       contents: read
       id-token: write
       attestations: write
+      packages: write
     uses: ./.github/workflows/ci-container.yml
     with:
       buildtime-base: *buildtime_base
       runtime-base: *runtime_base
-    secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      image-repo: ghcr.io/catherinetcai/kube-router
+      git-image-repo: ghcr.io/catherinetcai/kube-router-git
+    # secrets:
+    #   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    #   DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   # Phase 3: Publish a versioned release via GoReleaser.
   # Only runs on tag pushes (v*) after the container build succeeds.
