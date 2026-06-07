@@ -15,6 +15,11 @@ const (
 	defaultOverlayTunnelEncapPort uint16 = 5555
 	defaultGoBGPAdminAddress             = "127.0.0.1"
 	defaultGoBGPAdminPort         uint16 = 50051
+
+	defaultBFDPort                  = 3784
+	defaultBFDDetectionMultiplier   = 3
+	defaultBFDDesiredMinTxInterval  = 1000000 // 1s in microseconds
+	defaultBFDRequiredMinRxInterval = 1000000 // 1s in microseconds
 )
 
 type KubeRouterConfig struct {
@@ -23,6 +28,10 @@ type KubeRouterConfig struct {
 	AdvertiseLoadBalancerIP        bool
 	AdvertiseNodePodCidr           bool
 	AutoMTU                        bool
+	BFDDesiredMinTxInterval        uint32
+	BFDDetectionMultiplier         uint32
+	BFDPort                        uint32
+	BFDRequiredMinRxInterval       uint32
 	BGPGracefulRestart             bool
 	BGPGracefulRestartDeferralTime time.Duration
 	BGPGracefulRestartTime         time.Duration
@@ -33,6 +42,7 @@ type KubeRouterConfig struct {
 	ClusterAsn                     uint
 	ClusterIPCIDRs                 []string
 	DisableSrcDstCheck             bool
+	EnableBFD                      bool
 	EnableCNI                      bool
 	EnableiBGP                     bool
 	EnableIPv4                     bool
@@ -131,6 +141,10 @@ func (s *KubeRouterConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&s.AutoMTU, "auto-mtu", true,
 		"Auto detect and set the largest possible MTU for kube-bridge and pod interfaces (also accounts for "+
 			"IPIP overlay network when enabled).")
+	fs.Uint32Var(&s.BFDDesiredMinTxInterval, "bfd-desired-min-tx-interval", defaultBFDDesiredMinTxInterval, "The desired min interval in microseconds for GoBGP to transmit BFD control packets")
+	fs.Uint32Var(&s.BFDDetectionMultiplier, "bfd-detection-multiplier", defaultBFDDetectionMultiplier, "BFD failure detection multiplier")
+	fs.Uint32Var(&s.BFDPort, "bfd-port", defaultBFDPort, "")
+	fs.Uint32Var(&s.BFDRequiredMinRxInterval, "bfd-required-min-rx-interval", defaultBFDRequiredMinRxInterval, "Min interval in microseconds for GoBGP to receive BFD control packets")
 	fs.BoolVar(&s.BGPGracefulRestart, "bgp-graceful-restart", false,
 		"Enables the BGP Graceful Restart capability so that routes are preserved on unexpected restarts")
 	fs.DurationVar(&s.BGPGracefulRestartDeferralTime, "bgp-graceful-restart-deferral-time",
@@ -153,6 +167,7 @@ func (s *KubeRouterConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&s.DisableSrcDstCheck, "disable-source-dest-check", true,
 		"Disable the source-dest-check attribute for AWS EC2 instances. When this option is false, it must be "+
 			"set some other way.")
+	fs.BoolVar(&s.EnableBFD, "enable-bfd", false, "Enable BFD for GoBGP")
 	fs.BoolVar(&s.EnableCNI, "enable-cni", true,
 		"Enable CNI plugin. Disable if you want to use kube-router features alongside another CNI plugin.")
 	fs.BoolVar(&s.EnableiBGP, "enable-ibgp", true,

@@ -124,6 +124,11 @@ type NetworkRoutingController struct {
 	globalPeerRouters              []*gobgpapi.Peer
 	nodePeerRouters                []string
 	enableCNI                      bool
+	enableBFD                      bool
+	bfdDetectionMultiplier         uint32
+	bfdMinRxInt                    uint32
+	bfdMinTxInt                    uint32
+	bfdPort                        uint32
 	bgpFullMeshMode                bool
 	bgpEnableInternal              bool
 	bgpGracefulRestart             bool
@@ -1391,6 +1396,12 @@ func NewNetworkRoutingController(clientset kubernetes.Interface,
 	} else if nrc.goBGPAdminPort == 0 {
 		klog.Warning("--gobgp-admin-port is 0 but --gobgp-admin-address is non-empty, not binding GoBGP socket to an address")
 	}
+
+	nrc.enableBFD = kubeRouterConfig.EnableBFD
+	nrc.bfdPort = kubeRouterConfig.BFDPort
+	nrc.bfdDetectionMultiplier = kubeRouterConfig.BFDDetectionMultiplier
+	nrc.bfdMinRxInt = kubeRouterConfig.BFDRequiredMinRxInterval
+	nrc.bfdMinTxInt = kubeRouterConfig.BFDDesiredMinTxInterval
 
 	// Convert ints to uint32s
 	peerASNs := make([]uint32, 0)

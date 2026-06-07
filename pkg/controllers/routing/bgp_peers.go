@@ -160,6 +160,13 @@ func (nrc *NetworkRoutingController) syncInternalPeers() {
 				LocalAddress: nrc.krNode.GetPrimaryNodeIP().String(),
 				RemotePort:   nrc.bgpPort,
 			},
+			Bfd: &gobgpapi.BfdPeerConfig{
+				Enabled:                  nrc.enableBFD,
+				Port:                     nrc.bfdPort,
+				DetectionMultiplier:      nrc.bfdDetectionMultiplier,
+				DesiredMinimumTxInterval: nrc.bfdMinTxInt,
+				RequiredMinimumReceive:   nrc.bfdMinRxInt,
+			},
 		}
 
 		if nrc.bgpGracefulRestart {
@@ -239,6 +246,14 @@ func (nrc *NetworkRoutingController) connectToExternalBGPPeers(server *gobgp.Bgp
 			continue
 		}
 
+		n.Bfd = &gobgpapi.BfdPeerConfig{
+			Enabled:                  nrc.enableBFD,
+			Port:                     nrc.bfdPort,
+			DetectionMultiplier:      nrc.bfdDetectionMultiplier,
+			DesiredMinimumTxInterval: nrc.bfdMinTxInt,
+			RequiredMinimumReceive:   nrc.bfdMinRxInt,
+		}
+
 		if bgpGracefulRestart {
 			n.GracefulRestart = &gobgpapi.GracefulRestart{
 				Enabled:         true,
@@ -247,7 +262,6 @@ func (nrc *NetworkRoutingController) connectToExternalBGPPeers(server *gobgp.Bgp
 				LocalRestarting: true,
 			}
 		}
-
 		configurePeerAfiSafis(n, nrc.krNode, bgpGracefulRestart)
 		if peerMultihopTTL > 1 {
 			n.EbgpMultihop = &gobgpapi.EbgpMultihop{
