@@ -1154,6 +1154,13 @@ func (nrc *NetworkRoutingController) startBgpServer(grpcServer bool) error {
 			peerCfgs,
 			nrc.bgpHoldtime,
 			nrc.krNode.GetPrimaryNodeIP().String(),
+			nrc.enableBFD,
+			bgp.BFDConfig{
+				Port:                  nrc.bfdPort,
+				DetectionMultiplier:   nrc.bfdDetectionMultiplier,
+				DesiredMinTxInterval:  nrc.bfdMinTxInt,
+				RequiredMinRxInterval: nrc.bfdMinRxInt,
+			},
 		)
 		if err != nil {
 			err2 := nrc.bgpServer.StopBgp(context.Background(), &gobgpapi.StopBgpRequest{})
@@ -1403,6 +1410,13 @@ func NewNetworkRoutingController(clientset kubernetes.Interface,
 	nrc.bfdMinRxInt = kubeRouterConfig.BFDRequiredMinRxInterval
 	nrc.bfdMinTxInt = kubeRouterConfig.BFDDesiredMinTxInterval
 
+	if nrc.enableBFD && nrc.bgpGracefulRestart {
+		klog.Warning("Both BFD and BGP Graceful Restart are enabled. BFD performs a hard BGP peer " +
+			"reset when a failure is detected, bypassing the Graceful Restart procedure and causing " +
+			"all routes to be withdrawn during any restart window. This combination is not recommended. " +
+			"See docs/bgp.md for details.")
+	}
+
 	// Convert ints to uint32s
 	peerASNs := make([]uint32, 0)
 	for _, i := range kubeRouterConfig.PeerASNs {
@@ -1457,6 +1471,7 @@ func NewNetworkRoutingController(clientset kubernetes.Interface,
 		peerPasswords,
 		nil,
 		nrc.krNode.GetPrimaryNodeIP().String(),
+		nil,
 	)
 	if err != nil {
 		return nil, err
@@ -1466,6 +1481,13 @@ func NewNetworkRoutingController(clientset kubernetes.Interface,
 		peerCfgs,
 		nrc.bgpHoldtime,
 		nrc.krNode.GetPrimaryNodeIP().String(),
+		nrc.enableBFD,
+		bgp.BFDConfig{
+			Port:                  nrc.bfdPort,
+			DetectionMultiplier:   nrc.bfdDetectionMultiplier,
+			DesiredMinTxInterval:  nrc.bfdMinTxInt,
+			RequiredMinRxInterval: nrc.bfdMinRxInt,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error processing Global Peer Router configs: %w", err)
@@ -1612,7 +1634,7 @@ func bgpPeerConfigsFromIndividualAnnotations(
 		}
 	}
 
-	return bgp.NewPeerConfigs(ipStrings, peerASNs, ports, passwords, localIPs, localAddress)
+	return bgp.NewPeerConfigs(ipStrings, peerASNs, ports, passwords, localIPs, localAddress, nil)
 }
 
 func goBGPListenAddrs(adminAddress string, adminPort uint16) []string {

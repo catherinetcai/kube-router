@@ -358,3 +358,68 @@ Specifically, people need to take care when combining `--override-nexthop` and `
 they understand their network, the flows they desire, how the kube-router logic works, and the possible side effects
 that are created from their configuration. Please refer to [this PR](https://github.com/cloudnativelabs/kube-router/pull/1025)
 for the risk and impact discussion.
+
+## BFD (Bidirectional Forwarding Detection)
+
+BFD provides sub-second failure detection for BGP peers by periodically
+exchanging UDP control packets (RFC 5880/5881). When a BFD session
+expires or the remote peer signals DOWN, GoBGP performs a hard reset
+of the corresponding BGP session.
+
+BFD is **disabled by default**. Enable it with the `--enable-bfd` flag.
+
+### CLI Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--enable-bfd` | `false` | Enable BFD for GoBGP external peers |
+| `--bfd-port` | `3784` | UDP port for BFD control packets |
+| `--bfd-detection-multiplier` | `3` | Number of missed packets before declaring a failure |
+| `--bfd-desired-min-tx-interval` | `1000000` (1s) | Desired minimum interval in µs between transmitted BFD control packets |
+| `--bfd-required-min-rx-interval` | `1000000` (1s) | Minimum interval in µs between received BFD control packets |
+
+### Per-Peer BFD Override (via Annotation)
+
+When using the `kube-router.io/peers` combined annotation, you can
+override BFD timers on a per-peer basis by including a `bfd:` block:
+
+```yaml
+- remoteip: 192.168.1.99
+  remoteasn: 65000
+  password: U2VjdXJlUGFzc3dvcmQK
+  bfd:
+    port: 3785
+    detection-multiplier: 2
+    required-min-rx-interval: 2000000
+    desired-min-tx-interval: 2000000
+```
+
+Per-peer BFD fields are optional. Omitted fields inherit the
+cluster-wide defaults set by the `--bfd-*` flags.
+
+### Scope: External Peers Only
+
+In v1, BFD is supported for **external (eBGP) peers only**. iBGP
+(node-to-node) peers do not receive BFD configuration. This is because:
+
+1. **Node failure detection is already handled** by the Kubernetes
+   node informer (`syncInternalPeers`), which tears down iBGP peers
+   on node delete events faster than a typical BGP hold-time.
+2. **BFD would actively harm Graceful Restart.** GoBGP performs a
+   hard BGP reset when BFD goes down (no graceful notification is
+   sent to the peer). This means the Graceful Restart helper speaker
+   will withdraw all stale routes immediately, defeating the purpose
+   of Graceful Restart. For this reason, kube-router logs a startup
+   warning if both `--enable-bfd` and `--bgp-graceful-restart` are
+   set.
+
+   The same advisory applies whether the BFD process is co-located
+   with the BGP control plane (as it is in GoBGP) or run separately:
+   RFC 4724 §3 explicitly allows a helper to delete stale routes
+   when BFD reports a forwarding-plane failure, even during a
+   graceful restart window. Juniper and Cisco document that
+   configuring both BFD and Graceful Restart on the same device is
+   "counterproductive" for this reason.
+
+<!-- TODO: add a "Routine Operations" section here covering pod rollouts,
+drains, network blips, and how they will trip BFD and hard-reset eBGP sessions -->

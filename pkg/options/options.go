@@ -143,7 +143,7 @@ func (s *KubeRouterConfig) AddFlags(fs *pflag.FlagSet) {
 			"IPIP overlay network when enabled).")
 	fs.Uint32Var(&s.BFDDesiredMinTxInterval, "bfd-desired-min-tx-interval", defaultBFDDesiredMinTxInterval, "The desired min interval in microseconds for GoBGP to transmit BFD control packets")
 	fs.Uint32Var(&s.BFDDetectionMultiplier, "bfd-detection-multiplier", defaultBFDDetectionMultiplier, "BFD failure detection multiplier")
-	fs.Uint32Var(&s.BFDPort, "bfd-port", defaultBFDPort, "")
+	fs.Uint32Var(&s.BFDPort, "bfd-port", defaultBFDPort, "UDP port for BFD control packets")
 	fs.Uint32Var(&s.BFDRequiredMinRxInterval, "bfd-required-min-rx-interval", defaultBFDRequiredMinRxInterval, "Min interval in microseconds for GoBGP to receive BFD control packets")
 	fs.BoolVar(&s.BGPGracefulRestart, "bgp-graceful-restart", false,
 		"Enables the BGP Graceful Restart capability so that routes are preserved on unexpected restarts")
