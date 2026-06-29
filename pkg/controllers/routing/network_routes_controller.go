@@ -1155,12 +1155,6 @@ func (nrc *NetworkRoutingController) startBgpServer(grpcServer bool) error {
 			nrc.bgpHoldtime,
 			nrc.krNode.GetPrimaryNodeIP().String(),
 			nrc.enableBFD,
-			bgp.BFDConfig{
-				Port:                  nrc.bfdPort,
-				DetectionMultiplier:   nrc.bfdDetectionMultiplier,
-				DesiredMinTxInterval:  nrc.bfdMinTxInt,
-				RequiredMinRxInterval: nrc.bfdMinRxInt,
-			},
 		)
 		if err != nil {
 			err2 := nrc.bgpServer.StopBgp(context.Background(), &gobgpapi.StopBgpRequest{})
@@ -1482,12 +1476,6 @@ func NewNetworkRoutingController(clientset kubernetes.Interface,
 		nrc.bgpHoldtime,
 		nrc.krNode.GetPrimaryNodeIP().String(),
 		nrc.enableBFD,
-		bgp.BFDConfig{
-			Port:                  nrc.bfdPort,
-			DetectionMultiplier:   nrc.bfdDetectionMultiplier,
-			DesiredMinTxInterval:  nrc.bfdMinTxInt,
-			RequiredMinRxInterval: nrc.bfdMinRxInt,
-		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error processing Global Peer Router configs: %w", err)

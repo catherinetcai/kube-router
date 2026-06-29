@@ -361,27 +361,11 @@ for the risk and impact discussion.
 
 ## BFD (Bidirectional Forwarding Detection)
 
-BFD provides sub-second failure detection for BGP peers by periodically
-exchanging UDP control packets (RFC 5880/5881). When a BFD session
-expires or the remote peer signals DOWN, GoBGP performs a hard reset
-of the corresponding BGP session.
+kube-router supports BFD for external peers. Enable it with the flag `--enable-bfd`.
 
-BFD is **disabled by default**. Enable it with the `--enable-bfd` flag.
+### Per-Node BFD Overrides
 
-### CLI Flags
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--enable-bfd` | `false` | Enable BFD for GoBGP external peers |
-| `--bfd-port` | `3784` | UDP port for BFD control packets |
-| `--bfd-detection-multiplier` | `3` | Number of missed packets before declaring a failure |
-| `--bfd-desired-min-tx-interval` | `1000000` (1s) | Desired minimum interval in µs between transmitted BFD control packets |
-| `--bfd-required-min-rx-interval` | `1000000` (1s) | Minimum interval in µs between received BFD control packets |
-
-### Per-Peer BFD Override (via Annotation)
-
-When using the `kube-router.io/peers` combined annotation, you can
-override BFD timers on a per-peer basis by including a `bfd:` block:
+Per-node BFD overrides can be configured via the `kube-router.io/peers` annotation:
 
 ```yaml
 - remoteip: 192.168.1.99

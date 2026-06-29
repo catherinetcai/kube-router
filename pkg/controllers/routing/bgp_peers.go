@@ -160,9 +160,6 @@ func (nrc *NetworkRoutingController) syncInternalPeers() {
 				LocalAddress: nrc.krNode.GetPrimaryNodeIP().String(),
 				RemotePort:   nrc.bgpPort,
 			},
-			// TODO: expand this comment to explain why BFD is permanently excluded
-			// from iBGP (cluster-wide disruption rationale).
-			// BFD is intentionally not enabled on iBGP (node-to-node) peers.
 		}
 
 		if nrc.bgpGracefulRestart {
@@ -242,14 +239,6 @@ func (nrc *NetworkRoutingController) connectToExternalBGPPeers(server *gobgp.Bgp
 			continue
 		}
 
-		clusterDefaults := bgp.BFDConfig{
-			Port:                  nrc.bfdPort,
-			DetectionMultiplier:   nrc.bfdDetectionMultiplier,
-			DesiredMinTxInterval:  nrc.bfdMinTxInt,
-			RequiredMinRxInterval: nrc.bfdMinRxInt,
-		}
-		n.Bfd = bgp.BuildPeerBfd(bgp.BFDConfig{}, nrc.enableBFD, clusterDefaults)
-
 		if bgpGracefulRestart {
 			n.GracefulRestart = &gobgpapi.GracefulRestart{
 				Enabled:         true,
@@ -281,7 +270,6 @@ func newGlobalPeers(
 	holdtime float64,
 	localAddress string,
 	enableBFD bool,
-	bfdDefaults bgp.BFDConfig,
 ) []*gobgpapi.Peer {
 	peers := make([]*gobgpapi.Peer, len(peerConfigs))
 
@@ -313,7 +301,7 @@ func newGlobalPeers(
 			peer.Transport.LocalAddress = peerConfig.LocalIP()
 		}
 
-		peer.Bfd = bgp.BuildPeerBfd(peerConfig.BFD(), enableBFD, bfdDefaults)
+		peer.Bfd = bgp.BuildPeerBfd(peerConfig.BFD(), enableBFD)
 
 		peers[i] = peer
 	}

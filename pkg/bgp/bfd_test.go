@@ -7,13 +7,6 @@ import (
 )
 
 func TestBuildPeerBfd(t *testing.T) {
-	defaults := BFDConfig{
-		Port:                  3784,
-		DetectionMultiplier:   3,
-		DesiredMinTxInterval:  1000000,
-		RequiredMinRxInterval: 1000000,
-	}
-
 	tests := []struct {
 		name    string
 		peer    BFDConfig
@@ -83,7 +76,7 @@ func TestBuildPeerBfd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := BuildPeerBfd(tt.peer, tt.enable, defaults)
+			got := BuildPeerBfd(tt.peer, tt.enable)
 			if tt.wantNil {
 				if got != nil {
 					t.Fatalf("expected nil, got %+v", got)
