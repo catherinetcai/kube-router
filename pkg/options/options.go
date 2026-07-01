@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	DefaultBFDPort                         = 3784
-	DefaultBFDDetectionMultiplier          = 3
-	DefaultBFDDesiredMinTxInterval         = 1000000 // 1s in microseconds
-	DefaultBFDRequiredMinRxInterval        = 1000000 // 1s in microseconds
+	DefaultBFDPort                  uint32 = 3784
+	DefaultBFDDetectionMultiplier   uint32 = 3
+	DefaultBFDDesiredMinTxInterval  uint32 = 1000000 // 1s in microseconds
+	DefaultBFDRequiredMinRxInterval uint32 = 1000000 // 1s in microseconds
 	DefaultBgpPort                         = 179
 	DefaultBgpHoldTime                     = 90 * time.Second
 	defaultHealthCheckPort                 = 20244

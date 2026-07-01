@@ -152,7 +152,7 @@ func NewPeerConfigs(
 	b64EncodedPasswords []string,
 	localIPs []string,
 	localAddress string,
-	bfdCfgs []BFDConfig,
+	globalBFDConfig BFDConfig,
 ) (PeerConfigs, error) {
 	if len(remoteIPs) != len(remoteASNs) {
 		return nil, errors.New("invalid peer router config, the number of IPs and ASN numbers must be equal")
@@ -177,7 +177,6 @@ func NewPeerConfigs(
 		var localIP string
 		var pw utils.Base64String
 		var port *uint32
-		var bfd BFDConfig
 		if len(ports) != 0 {
 			port = &ports[i]
 		}
@@ -187,10 +186,7 @@ func NewPeerConfigs(
 		if len(localIPs) != 0 {
 			localIP = localIPs[i]
 		}
-		if i < len(bfdCfgs) {
-			bfd = bfdCfgs[i]
-		}
-		peerCfg, err := NewPeerConfig(remoteIP, remoteASNs[i], port, pw, localIP, bfd)
+		peerCfg, err := NewPeerConfig(remoteIP, remoteASNs[i], port, pw, localIP, globalBFDConfig)
 		if err != nil {
 			return nil, err
 		}

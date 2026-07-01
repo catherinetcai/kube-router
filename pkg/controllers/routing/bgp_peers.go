@@ -269,7 +269,6 @@ func newGlobalPeers(
 	peerConfigs bgp.PeerConfigs,
 	holdtime float64,
 	localAddress string,
-	enableBFD bool,
 ) []*gobgpapi.Peer {
 	peers := make([]*gobgpapi.Peer, len(peerConfigs))
 
@@ -301,7 +300,7 @@ func newGlobalPeers(
 			peer.Transport.LocalAddress = peerConfig.LocalIP()
 		}
 
-		peer.Bfd = bgp.BuildPeerBfd(peerConfig.BFD(), enableBFD)
+		peer.Bfd = bgp.BuildPeerBfd(peerConfig.BFD())
 
 		peers[i] = peer
 	}

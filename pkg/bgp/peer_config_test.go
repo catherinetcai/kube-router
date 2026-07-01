@@ -207,6 +207,7 @@ func Test_NewPeerConfigs(t *testing.T) {
 		b64EncodedPasswords []string
 		localIPs            []string
 		localAddress        string
+		bfdConfig           BFDConfig
 		errorContains       string
 	}{
 		{
@@ -249,7 +250,7 @@ func Test_NewPeerConfigs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewPeerConfigs(tt.remoteIPs, tt.remoteASNs, tt.ports, tt.b64EncodedPasswords, tt.localIPs, tt.localAddress, nil)
+			_, err := NewPeerConfigs(tt.remoteIPs, tt.remoteASNs, tt.ports, tt.b64EncodedPasswords, tt.localIPs, tt.localAddress, BFDConfig{})
 			if tt.errorContains != "" {
 				assert.ErrorContains(t, err, tt.errorContains)
 			} else {

@@ -3067,8 +3067,8 @@ func startInformersForRoutes(t *testing.T, nrc *NetworkRoutingController, client
 		t.Fatalf("failed to add indexers to endpoint slice informer: %v", err)
 	}
 
-	go informerFactory.Start(bgp.BFDConfig{})
-	informerFactory.WaitForCacheSync(bgp.BFDConfig{})
+	go informerFactory.Start(nil)
+	informerFactory.WaitForCacheSync(nil)
 
 	nrc.svcLister = svcInformer.GetIndexer()
 	nrc.epSliceLister = epSliceInformer.GetIndexer()

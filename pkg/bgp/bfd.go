@@ -6,32 +6,40 @@ import (
 )
 
 type BFDConfig struct {
-	Enabled               bool   `yaml:"enabled"`
-	DesiredMinTxInterval  uint32 `yaml:"desired_min_tx_interval"`
-	RequiredMinRxInterval uint32 `yaml:"required_min_rx_interval"`
-	DetectionMultiplier   uint32 `yaml:"detection_multiplier"`
-	Port                  uint32 `yaml:"port"`
+	Enabled               *bool   `yaml:"enabled,omitempty"`
+	Port                  *uint32 `yaml:"port"`
+	DesiredMinTxInterval  *uint32 `yaml:"desired_min_tx_interval"`
+	DetectionMultiplier   *uint32 `yaml:"detection_multiplier"`
+	RequiredMinRxInterval *uint32 `yaml:"required_min_rx_interval"`
 }
 
-func BuildPeerBfd(peerCfg BFDConfig, enableBFD bool) *gobgpapi.BfdPeerConfig {
-	if !enableBFD || !peerCfg.Enabled {
+func BuildPeerBfd(peerCfg BFDConfig) *gobgpapi.BfdPeerConfig {
+	if peerCfg.Enabled != nil && !(*peerCfg.Enabled) {
 		return nil
 	}
 
-	port := peerCfg.Port
-	if port == 0 {
+	var port uint32
+	if peerCfg.Port != nil {
+		port = *peerCfg.Port
+	} else {
 		port = options.DefaultBFDPort
 	}
-	multiplier := peerCfg.DetectionMultiplier
-	if multiplier == 0 {
+	var multiplier uint32
+	if peerCfg.DetectionMultiplier != nil {
+		multiplier = *peerCfg.DetectionMultiplier
+	} else {
 		multiplier = options.DefaultBFDDetectionMultiplier
 	}
-	tx := peerCfg.DesiredMinTxInterval
-	if tx == 0 {
+	var tx uint32
+	if peerCfg.DesiredMinTxInterval != nil {
+		tx = *peerCfg.DesiredMinTxInterval
+	} else {
 		tx = options.DefaultBFDDesiredMinTxInterval
 	}
-	rx := peerCfg.RequiredMinRxInterval
-	if rx == 0 {
+	var rx uint32
+	if peerCfg.RequiredMinRxInterval != nil {
+		rx = *peerCfg.RequiredMinRxInterval
+	} else {
 		rx = options.DefaultBFDRequiredMinRxInterval
 	}
 

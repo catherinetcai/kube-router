@@ -1154,7 +1154,6 @@ func (nrc *NetworkRoutingController) startBgpServer(grpcServer bool) error {
 			peerCfgs,
 			nrc.bgpHoldtime,
 			nrc.krNode.GetPrimaryNodeIP().String(),
-			nrc.enableBFD,
 		)
 		if err != nil {
 			err2 := nrc.bgpServer.StopBgp(context.Background(), &gobgpapi.StopBgpRequest{})
@@ -1405,9 +1404,7 @@ func NewNetworkRoutingController(clientset kubernetes.Interface,
 	nrc.bfdMinTxInt = kubeRouterConfig.BFDDesiredMinTxInterval
 
 	if nrc.enableBFD && nrc.bgpGracefulRestart {
-		klog.Warning("Both BFD and BGP Graceful Restart are enabled. BFD performs a hard BGP peer " +
-			"reset when a failure is detected, bypassing the Graceful Restart procedure and causing " +
-			"all routes to be withdrawn during any restart window. This combination is not recommended. " +
+		klog.Warning("Both BFD and BGP Graceful Restart should not be enabled at the same time. " +
 			"See docs/bgp.md for details.")
 	}
 
@@ -1465,7 +1462,12 @@ func NewNetworkRoutingController(clientset kubernetes.Interface,
 		peerPasswords,
 		nil,
 		nrc.krNode.GetPrimaryNodeIP().String(),
-		nil,
+		bgp.BFDConfig{
+			Enabled:               &nrc.enableBFD,
+			Port:                  &nrc.bfdPort,
+			DesiredMinTxInterval:  &nrc.bfdMinTxInt,
+			RequiredMinRxInterval: &nrc.bfdMinRxInt,
+		},
 	)
 	if err != nil {
 		return nil, err
@@ -1475,7 +1477,6 @@ func NewNetworkRoutingController(clientset kubernetes.Interface,
 		peerCfgs,
 		nrc.bgpHoldtime,
 		nrc.krNode.GetPrimaryNodeIP().String(),
-		nrc.enableBFD,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error processing Global Peer Router configs: %w", err)
@@ -1622,7 +1623,7 @@ func bgpPeerConfigsFromIndividualAnnotations(
 		}
 	}
 
-	return bgp.NewPeerConfigs(ipStrings, peerASNs, ports, passwords, localIPs, localAddress, nil)
+	return bgp.NewPeerConfigs(ipStrings, peerASNs, ports, passwords, localIPs, localAddress, bgp.BFDConfig{})
 }
 
 func goBGPListenAddrs(adminAddress string, adminPort uint16) []string {
