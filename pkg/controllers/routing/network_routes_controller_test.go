@@ -2605,6 +2605,41 @@ func Test_bgpPeerConfigsFromAnnotations(t *testing.T) {
 			}(),
 		},
 		{
+			name: "bgp peers config annotation with bfd",
+			nodeAnnotations: map[string]string{
+				peersAnnotation: `- remoteip: 10.0.0.1
+  remoteasn: 64640
+  password: cGFzc3dvcmQ=
+  localip: 192.168.0.1
+	bfd:
+		port: 37850
+		detection-multiplier: 2
+		desired-min-tx-interval: 2
+		required-min-rx-interval: 2
+- remoteip: 10.0.0.2
+  remoteasn: 64641
+  password: cGFzc3dvcmQ=
+  localip: 192.168.0.2`,
+			},
+			expected: func() bgp.PeerConfigs {
+				peer1, _ := bgp.NewPeerConfig(
+					"10.0.0.1",
+					64640,
+					nil,
+					"cGFzc3dvcmQ=",
+					"192.168.0.1",
+					bgp.BFDConfig{
+						Port:                  new(uint32(37850)),
+						DetectionMultiplier:   new(uint32(2)),
+						DesiredMinTxInterval:  new(uint32(2)),
+						RequiredMinRxInterval: new(uint32(2)),
+					},
+				)
+				peer2, _ := bgp.NewPeerConfig("10.0.0.2", 64641, nil, "cGFzc3dvcmQ=", "192.168.0.2", bgp.BFDConfig{})
+				return bgp.PeerConfigs{peer1, peer2}
+			}(),
+		},
+		{
 			name: "combined bgp peers config annotation with mix of local IPs, passwords, and ports being set",
 			nodeAnnotations: map[string]string{
 				peersAnnotation: `- remoteip: 10.0.0.1
