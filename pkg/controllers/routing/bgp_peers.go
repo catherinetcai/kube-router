@@ -247,7 +247,6 @@ func (nrc *NetworkRoutingController) connectToExternalBGPPeers(server *gobgp.Bgp
 				LocalRestarting: true,
 			}
 		}
-
 		configurePeerAfiSafis(n, nrc.krNode, bgpGracefulRestart)
 		if peerMultihopTTL > 1 {
 			n.EbgpMultihop = &gobgpapi.EbgpMultihop{
@@ -266,7 +265,6 @@ func (nrc *NetworkRoutingController) connectToExternalBGPPeers(server *gobgp.Bgp
 	return nil
 }
 
-// Does validation and returns neighbor configs
 func newGlobalPeers(
 	peerConfigs bgp.PeerConfigs,
 	holdtime float64,
@@ -301,6 +299,8 @@ func newGlobalPeers(
 		if peerConfig.LocalIP() != "" {
 			peer.Transport.LocalAddress = peerConfig.LocalIP()
 		}
+
+		peer.Bfd = bgp.BuildPeerBfd(peerConfig.BFD())
 
 		peers[i] = peer
 	}

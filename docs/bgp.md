@@ -358,3 +358,34 @@ Specifically, people need to take care when combining `--override-nexthop` and `
 they understand their network, the flows they desire, how the kube-router logic works, and the possible side effects
 that are created from their configuration. Please refer to [this PR](https://github.com/cloudnativelabs/kube-router/pull/1025)
 for the risk and impact discussion.
+
+## BFD (Bidirectional Forwarding Detection)
+
+kube-router supports BFD for external peers. Enable it with the flag `--enable-bfd`.
+
+### Per-Node BFD Overrides
+
+Per-node BFD overrides can be configured via the `kube-router.io/peers` annotation:
+
+```yaml
+- remoteip: 192.168.1.99
+  remoteasn: 65000
+  password: U2VjdXJlUGFzc3dvcmQK
+  bfd:
+    port: 3785
+    detection-multiplier: 2
+    required-min-rx-interval: 2000000
+    desired-min-tx-interval: 2000000
+```
+
+Per-node BFD overrides are _not_ supported via individual node annotations, as they are deprecated.
+
+### BFD & Graceful Restart
+
+kube-router will log a warning when BFD and graceful restart
+are both configured. Configuring both BFD and graceful restart
+is **not** recommended as they serve contradictory purposes
+and can cause inconsistent and undesirable routing behavior.
+
+<!-- TODO: add a "Routine Operations" section here covering pod rollouts,
+drains, network blips, and how they will trip BFD and hard-reset eBGP sessions -->
