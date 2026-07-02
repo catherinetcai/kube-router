@@ -1463,7 +1463,7 @@ func NewNetworkRoutingController(clientset kubernetes.Interface,
 		nil,
 		nrc.krNode.GetPrimaryNodeIP().String(),
 		bgp.BFDConfig{
-			Enabled:               &nrc.enableBFD,
+			Enabled:               nrc.enableBFD,
 			Port:                  &nrc.bfdPort,
 			DesiredMinTxInterval:  &nrc.bfdMinTxInt,
 			RequiredMinRxInterval: &nrc.bfdMinRxInt,
@@ -1623,6 +1623,8 @@ func bgpPeerConfigsFromIndividualAnnotations(
 		}
 	}
 
+	// We intentionally pass in empty BFD configs here. Individual node annotations are deprecated.
+	// We do not plan on supporting new features like BFD using individual node annotations.
 	return bgp.NewPeerConfigs(ipStrings, peerASNs, ports, passwords, localIPs, localAddress, bgp.BFDConfig{})
 }
 

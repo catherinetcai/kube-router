@@ -81,8 +81,9 @@ func (p PeerConfig) String() string {
 	if p.remoteIP != nil {
 		fields = append(fields, fmt.Sprintf("RemoteIP: %v", p.remoteIP))
 	}
-	// TODO: decide how to represent BFD in String() — currently a value type,
-	// may need updating when we wire per-peer BFD display.
+	if p.bfd.Enabled {
+		fields = append(fields, fmt.Sprintf("BFD: %v", p.bfd))
+	}
 	return fmt.Sprintf("PeerConfig{%s}", strings.Join(fields, ", "))
 }
 

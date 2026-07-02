@@ -2611,11 +2611,11 @@ func Test_bgpPeerConfigsFromAnnotations(t *testing.T) {
   remoteasn: 64640
   password: cGFzc3dvcmQ=
   localip: 192.168.0.1
-	bfd:
-		port: 37850
-		detection-multiplier: 2
-		desired-min-tx-interval: 2
-		required-min-rx-interval: 2
+  bfd:
+    port: 37850
+    detection-multiplier: 2
+    desired-min-tx-interval: 2
+    required-min-rx-interval: 2
 - remoteip: 10.0.0.2
   remoteasn: 64641
   password: cGFzc3dvcmQ=
