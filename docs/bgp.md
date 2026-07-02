@@ -378,7 +378,7 @@ Per-node BFD overrides can be configured via the `kube-router.io/peers` annotati
     desired-min-tx-interval: 2000000
 ```
 
-Per-node BFD overrides are _not_ supported via individual node annotations, as it is now deprecated.
+Per-node BFD overrides are _not_ supported via individual node annotations, as they are deprecated.
 
 ### BFD & Graceful Restart
 
