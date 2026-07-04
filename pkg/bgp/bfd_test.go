@@ -27,11 +27,6 @@ func TestBFDConfig_String(t *testing.T) {
 			expected: "BFDConfig{Enabled: true}",
 		},
 		{
-			name:     "Enabled false",
-			config:   BFDConfig{},
-			expected: "BFDConfig{Enabled: false}",
-		},
-		{
 			name: "Port",
 			config: BFDConfig{
 				Port: new(uint32(3784)),
@@ -77,6 +72,19 @@ func TestBuildPeerBfd(t *testing.T) {
 		{
 			name: "bfd not enabled returns nil",
 			peer: BFDConfig{Port: new(uint32(5000))},
+		},
+		{
+			name: "no fields set, use defaults",
+			peer: BFDConfig{
+				Enabled: true,
+			},
+			expected: &gobgpapi.BfdPeerConfig{
+				Enabled:                  true,
+				Port:                     options.DefaultBFDPort,
+				DetectionMultiplier:      options.DefaultBFDDetectionMultiplier,
+				DesiredMinimumTxInterval: options.DefaultBFDDesiredMinTxInterval,
+				RequiredMinimumReceive:   options.DefaultBFDRequiredMinRxInterval,
+			},
 		},
 		{
 			name: "fields not set are set with defaults",

@@ -24,6 +24,9 @@ pod IPs, service IPs, etc.).
   - [Restoring pre-2.9.0 behavior](#restoring-pre-290-behavior)
 - [Overriding the next hop](#overriding-the-next-hop)
 - [Overriding the next hop and enable IPIP/tunnel](#overriding-the-next-hop-and-enable-ipiptunnel)
+- [BFD (Bidirectional Forwarding Detection)](#bfd-bidirectional-forwarding-detection)
+  - [Per-Node BFD Overrides](#per-node-bfd-overrides)
+  - [BFD & Graceful Restart](#bfd--graceful-restart)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 

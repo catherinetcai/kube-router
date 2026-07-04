@@ -1403,6 +1403,12 @@ func NewNetworkRoutingController(clientset kubernetes.Interface,
 	nrc.bfdMinRxInt = kubeRouterConfig.BFDRequiredMinRxInterval
 	nrc.bfdMinTxInt = kubeRouterConfig.BFDDesiredMinTxInterval
 
+	if nrc.enableBFD {
+		if nrc.bfdDetectionMultiplier > options.BFDDetectionMultiplierMax {
+			return nil, fmt.Errorf("--bfd-detection-multiplier must be < %d", options.BFDDetectionMultiplierMax)
+		}
+	}
+
 	if nrc.enableBFD && nrc.bgpGracefulRestart {
 		klog.Warning("Both BFD and BGP Graceful Restart should not be enabled at the same time. " +
 			"See docs/bgp.md for details.")
@@ -1465,6 +1471,7 @@ func NewNetworkRoutingController(clientset kubernetes.Interface,
 		bgp.BFDConfig{
 			Enabled:               nrc.enableBFD,
 			Port:                  &nrc.bfdPort,
+			DetectionMultiplier:   &nrc.bfdDetectionMultiplier,
 			DesiredMinTxInterval:  &nrc.bfdMinTxInt,
 			RequiredMinRxInterval: &nrc.bfdMinRxInt,
 		},
