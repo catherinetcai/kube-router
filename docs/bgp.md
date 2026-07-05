@@ -375,10 +375,11 @@ Per-node BFD overrides can be configured via the `kube-router.io/peers` annotati
   remoteasn: 65000
   password: U2VjdXJlUGFzc3dvcmQK
   bfd:
+    enabled: true
     port: 3785
-    detection-multiplier: 2
-    required-min-rx-interval: 2000000
-    desired-min-tx-interval: 2000000
+    detection_multiplier: 2
+    required_min_rx_interval: 200000
+    desired_min_tx_interval: 200000
 ```
 
 Per-node BFD overrides are _not_ supported via individual node annotations, as they are deprecated.
