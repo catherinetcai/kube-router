@@ -300,7 +300,7 @@ func newGlobalPeers(
 			peer.Transport.LocalAddress = peerConfig.LocalIP()
 		}
 
-		peer.Bfd = bgp.BuildPeerBfd(peerConfig.BFD())
+		peer.Bfd = peerConfig.BFD().ToGoBGP()
 
 		peers[i] = peer
 	}

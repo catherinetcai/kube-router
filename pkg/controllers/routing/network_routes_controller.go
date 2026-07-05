@@ -1404,8 +1404,8 @@ func NewNetworkRoutingController(clientset kubernetes.Interface,
 	nrc.bfdMinTxInt = kubeRouterConfig.BFDDesiredMinTxInterval
 
 	if nrc.enableBFD {
-		if nrc.bfdDetectionMultiplier > options.BFDDetectionMultiplierMax {
-			return nil, fmt.Errorf("--bfd-detection-multiplier must be < %d", options.BFDDetectionMultiplierMax)
+		if nrc.bfdDetectionMultiplier == 0 || nrc.bfdDetectionMultiplier > options.BFDDetectionMultiplierMax {
+			return nil, fmt.Errorf("--bfd-detection-multiplier must be between 1-%d", options.BFDDetectionMultiplierMax)
 		}
 	}
 
