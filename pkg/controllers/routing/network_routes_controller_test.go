@@ -2599,8 +2599,43 @@ func Test_bgpPeerConfigsFromAnnotations(t *testing.T) {
   localip: 192.168.0.2`,
 			},
 			expected: func() bgp.PeerConfigs {
-				peer1, _ := bgp.NewPeerConfig("10.0.0.1", 64640, nil, "cGFzc3dvcmQ=", "192.168.0.1")
-				peer2, _ := bgp.NewPeerConfig("10.0.0.2", 64641, nil, "cGFzc3dvcmQ=", "192.168.0.2")
+				peer1, _ := bgp.NewPeerConfig("10.0.0.1", 64640, nil, "cGFzc3dvcmQ=", "192.168.0.1", bgp.BFDConfig{})
+				peer2, _ := bgp.NewPeerConfig("10.0.0.2", 64641, nil, "cGFzc3dvcmQ=", "192.168.0.2", bgp.BFDConfig{})
+				return bgp.PeerConfigs{peer1, peer2}
+			}(),
+		},
+		{
+			name: "bgp peers config annotation with bfd",
+			nodeAnnotations: map[string]string{
+				peersAnnotation: `- remoteip: 10.0.0.1
+  remoteasn: 64640
+  password: cGFzc3dvcmQ=
+  localip: 192.168.0.1
+  bfd:
+    port: 37850
+    detection-multiplier: 2
+    desired-min-tx-interval: 2
+    required-min-rx-interval: 2
+- remoteip: 10.0.0.2
+  remoteasn: 64641
+  password: cGFzc3dvcmQ=
+  localip: 192.168.0.2`,
+			},
+			expected: func() bgp.PeerConfigs {
+				peer1, _ := bgp.NewPeerConfig(
+					"10.0.0.1",
+					64640,
+					nil,
+					"cGFzc3dvcmQ=",
+					"192.168.0.1",
+					bgp.BFDConfig{
+						Port:                  new(uint32(37850)),
+						DetectionMultiplier:   new(uint32(2)),
+						DesiredMinTxInterval:  new(uint32(2)),
+						RequiredMinRxInterval: new(uint32(2)),
+					},
+				)
+				peer2, _ := bgp.NewPeerConfig("10.0.0.2", 64641, nil, "cGFzc3dvcmQ=", "192.168.0.2", bgp.BFDConfig{})
 				return bgp.PeerConfigs{peer1, peer2}
 			}(),
 		},
@@ -2621,17 +2656,17 @@ func Test_bgpPeerConfigsFromAnnotations(t *testing.T) {
   port: 181`,
 			},
 			expected: func() bgp.PeerConfigs {
-				peer1, err := bgp.NewPeerConfig("10.0.0.1", 64640, nil, "cGFzc3dvcmQ=", "192.168.0.1")
+				peer1, err := bgp.NewPeerConfig("10.0.0.1", 64640, nil, "cGFzc3dvcmQ=", "192.168.0.1", bgp.BFDConfig{})
 				if err != nil {
 					t.Fatalf("should not have gotten error constructing PeerConfig but got one: %s", err)
 				}
 				port2 := uint32(180)
-				peer2, err := bgp.NewPeerConfig("10.0.0.2", 64641, &port2, "", "192.168.0.2")
+				peer2, err := bgp.NewPeerConfig("10.0.0.2", 64641, &port2, "", "192.168.0.2", bgp.BFDConfig{})
 				if err != nil {
 					t.Fatalf("should not have gotten error constructing PeerConfig but got one: %s", err)
 				}
 				port3 := uint32(181)
-				peer3, err := bgp.NewPeerConfig("10.0.0.3", 64642, &port3, "cGFzc3dvcmQ=", "")
+				peer3, err := bgp.NewPeerConfig("10.0.0.3", 64642, &port3, "cGFzc3dvcmQ=", "", bgp.BFDConfig{})
 				if err != nil {
 					t.Fatalf("should not have gotten error constructing PeerConfig but got one: %s", err)
 				}
@@ -2700,8 +2735,8 @@ func Test_bgpPeerConfigsFromIndividualAnnotations(t *testing.T) {
 			expected: func() bgp.PeerConfigs {
 				port1 := uint32(180)
 				port2 := uint32(181)
-				peer1, _ := bgp.NewPeerConfig("10.0.0.1", 64640, &port1, "cGFzc3dvcmQ=", "192.168.0.1")
-				peer2, _ := bgp.NewPeerConfig("10.0.0.2", 64641, &port2, "cGFzc3dvcmQ=", "192.168.0.2")
+				peer1, _ := bgp.NewPeerConfig("10.0.0.1", 64640, &port1, "cGFzc3dvcmQ=", "192.168.0.1", bgp.BFDConfig{})
+				peer2, _ := bgp.NewPeerConfig("10.0.0.2", 64641, &port2, "cGFzc3dvcmQ=", "192.168.0.2", bgp.BFDConfig{})
 				return bgp.PeerConfigs{peer1, peer2}
 			}(),
 		},
@@ -2717,8 +2752,8 @@ func Test_bgpPeerConfigsFromIndividualAnnotations(t *testing.T) {
 			expected: func() bgp.PeerConfigs {
 				port1 := uint32(180)
 				port2 := uint32(181)
-				peer1, _ := bgp.NewPeerConfig("10.0.0.1", 64640, &port1, "", "192.168.0.1")
-				peer2, _ := bgp.NewPeerConfig("10.0.0.2", 64641, &port2, "cGFzc3dvcmQ=", "192.168.0.2")
+				peer1, _ := bgp.NewPeerConfig("10.0.0.1", 64640, &port1, "", "192.168.0.1", bgp.BFDConfig{})
+				peer2, _ := bgp.NewPeerConfig("10.0.0.2", 64641, &port2, "cGFzc3dvcmQ=", "192.168.0.2", bgp.BFDConfig{})
 				return bgp.PeerConfigs{peer1, peer2}
 			}(),
 		},
