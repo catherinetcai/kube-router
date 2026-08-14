@@ -27,6 +27,7 @@ pod IPs, service IPs, etc.).
 - [BFD (Bidirectional Forwarding Detection)](#bfd-bidirectional-forwarding-detection)
   - [Configuring BFD](#configuring-bfd)
   - [BFD & Graceful Restart](#bfd--graceful-restart)
+  - [BFD & BGP Session Interaction](#bfd--bgp-session-interaction)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -414,3 +415,16 @@ effects and can cause inconsistent routing behavior depending on vendor implemen
 In GoBGP, if BFD and graceful restart are both configured and a peer is
 detected as down, graceful restart seems to be bypassed and peer routes are
 immediately flushed.
+
+### BFD & BGP Session Interaction
+
+When a peer's BFD session goes down, GoBGP immediately tears down the BGP session and withdraws
+the peer's routes. However, BFD being down does not keep the BGP session down. This means that
+you can get into a state where the BGP session is re-established, but BFD is still down. The
+GoBGP implementation of BFD/BGP is edge-triggered, so fast withdrawal of BGP routes is only
+triggered on the BFD session going from up to down. If BFD stays down and something disrupts the
+BGP session, then routes will not be withdrawn quickly.
+
+This behavior is confusing but expected. Some network vendors implement a "BFD strict mode"
+to prevent BGP sessions from being established if a BFD session is not established. GoBGP
+does not currently support any feature like this.
